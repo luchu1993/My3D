@@ -29,6 +29,7 @@ Log::Log(Context *context)
 #else
     , level_(LOG_INFO)
 #endif
+    , timeStamp_(true)
     , inWrite_(false)
     , quiet_(false)
 {

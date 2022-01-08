@@ -45,7 +45,7 @@ String Time::GetTimeStamp()
     std::time_t sysTime = std::time(nullptr);
 
     char dateTime[CONVERSION_BUFFER_LENGTH];
-    strftime(dateTime, sizeof(dateTime), "%F-%T", std::localtime(&sysTime));
+    strftime(dateTime, sizeof(dateTime), "%F %T", std::localtime(&sysTime));
     return String(dateTime);
 }
 

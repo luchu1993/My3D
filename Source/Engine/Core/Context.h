@@ -20,9 +20,9 @@ class MY3D_API Context : public RefCounted
 
 public:
     /// Construct
-    Context() = default;
+    Context();
     /// Destruct
-    ~Context() override = default;
+    ~Context() override;
     /// Create an object by type. Return pointer to it or null if factory not found
     template<typename T> inline SharedPtr<T> CreateObject()
     {
@@ -53,7 +53,7 @@ public:
     /// Return subsystem by type
     Object* GetSubsystem(StringHash type) const;
     /// Template version of return a subsystem
-    template<typename T> T* GetSystem() const;
+    template<typename T> T* GetSubSystem() const;
 
 private:
     /// Object factories
@@ -68,5 +68,28 @@ template<typename T> void Context::RegisterFactory()
 {
     RegisterFactory(new ObjectFactoryImpl<T>(this));
 }
+
+template <typename T> void Context::RegisterFactory(const char* category)
+{
+    RegisterFactory(new ObjectFactoryImpl<T>(this), category);
+}
+
+template <typename T> T* Context::RegisterSubsystem()
+{
+    auto* subsystem = new T(this);
+    RegisterSubsystem(subsystem);
+    return subsystem;
+}
+
+template <typename T> void Context::RemoveSubsystem()
+{
+    RemoveSubsystem(T::GetTypeStatic());
+}
+
+template <typename T> T* Context::GetSubSystem() const
+{
+    return static_cast<T*>(GetSubsystem(T::GetTypeStatic()));
+}
+
 }
 

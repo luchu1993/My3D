@@ -3,6 +3,11 @@
 //
 
 #include "Launch/Engine.h"
+#include "Core/Context.h"
+#include "IO/Log.h"
+#include "Core/Timer.h"
+
+
 #include <cassert>
 
 
@@ -17,7 +22,14 @@ namespace My3D
         , initialized_(false)
         , exiting_(false)
     {
+        // Register self as a subsystem
         context_->RegisterSubsystem(this);
+
+#ifdef MY3D_LOGGING
+        context_->RegisterSubsystem<Log>();
+#endif
+
+        context->RemoveSubsystem<Time>();
     }
 
     bool Engine::Initialize()

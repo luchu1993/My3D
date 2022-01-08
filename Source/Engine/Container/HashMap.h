@@ -350,7 +350,7 @@ namespace My3D
                 return End();
 
             auto* node = static_cast<Node*>(it.ptr_);
-            Node* next = node->next_;
+            Node* next = node->Next();
 
             unsigned hashKey = Hash(node->pair_.first_);
 
@@ -369,6 +369,7 @@ namespace My3D
                 Ptrs()[hashKey]->down_ = node->down_;
 
             EraseNode(node);
+            return Iterator(next);
         }
         /// Clear the map
         void Clear()
@@ -421,6 +422,18 @@ namespace My3D
             Node* node = FindNode(key, hashKey);
             if (node)
                 return Iterator(node);
+
+            return End();
+        }
+        /// Return const iterator to the pair with key, or end iterator if not found.
+        ConstIterator Find(const T& key) const
+        {
+            if (!ptrs_)
+                return End();
+            unsigned hashKey = Hash(key);
+            Node* node = FindNode(key, hashKey);
+            if (node)
+                return ConstIterator(node);
 
             return End();
         }

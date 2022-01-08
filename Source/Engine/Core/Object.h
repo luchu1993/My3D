@@ -106,7 +106,7 @@ public:
     /// Return type info of objects created by this factory
     const TypeInfo* GetTypeInfo() const { return typeInfo_; }
     /// Return type hash of objects created by this factory
-    StringHash GetType() const { return typeInfo_; }
+    StringHash GetType() const { return typeInfo_->GetType(); }
     /// Return type name of objects created by this factory
     const String& GetTypeName() const { return typeInfo_->GetTypeName(); }
 
