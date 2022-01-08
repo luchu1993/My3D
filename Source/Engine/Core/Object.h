@@ -7,6 +7,10 @@
 #include "My3D.h"
 #include "Core/StringHash.h"
 #include "Container/RefCounted.h"
+#include "Container/Ptr.h"
+
+
+#include <cassert>
 
 
 namespace My3D
@@ -83,10 +87,53 @@ protected:
 };
 
 template<typename T>
-T* Object::GetSubSystem() const
+T* Object::GetSubSystem() const { return static_cast<T*>( GetSubSystem(T::GetTypeStatic()) );}
+
+/// Base class for object factories
+class MY3D_API ObjectFactory : public RefCounted
 {
-    return static_cast<T*>( GetSubSystem(T::GetTypeStatic()) );
-}
+public:
+    /// Construct
+    explicit ObjectFactory(Context* context)
+        : context_(context)
+    {
+        assert(context);
+    }
+    /// Create an object. Implemented im templated subclasses
+    virtual SharedPtr<Object> CreateObject() = 0;
+    /// Return execution context
+    Context* GetContext() const { return context_; }
+    /// Return type info of objects created by this factory
+    const TypeInfo* GetTypeInfo() const { return typeInfo_; }
+    /// Return type hash of objects created by this factory
+    StringHash GetType() const { return typeInfo_; }
+    /// Return type name of objects created by this factory
+    const String& GetTypeName() const { return typeInfo_->GetTypeName(); }
+
+protected:
+    /// Execution context
+    Context* context_;
+    /// Type info
+    const TypeInfo* typeInfo_{};
+};
+
+/// Template implementation of object factory
+    template <typename T> class ObjectFactoryImpl : public ObjectFactory
+    {
+    public:
+        /// Construct
+        ObjectFactoryImpl(Context* context)
+            : ObjectFactory(context)
+        {
+            typeInfo_ = T::GetTypeInfoStatic();
+        }
+
+        /// Create an object of specific type
+        SharedPtr<Object> CreateObject() override
+        {
+            return SharedPtr<object>(new T(context_));
+        }
+    };
 
 }
 
