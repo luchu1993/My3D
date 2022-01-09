@@ -5,10 +5,13 @@
 #pragma once
 
 #include "My3D.h"
+#include "Container/Vector.h"
 
 #include <cstring>
 #include <cctype>
 #include <cstdarg>
+#include <cassert>
+
 
 namespace My3D
 {
@@ -17,27 +20,37 @@ static const int CONVERSION_BUFFER_LENGTH = 128;
 static const int MATRIX_CONVERSION_BUFFER_LENGTH = 256;
 
 class StringHash;
+class String;
 
+template <typename T, typename U> class HashMap;
+/// Map of string
+using StringMap = HashMap<StringHash, String>;
+
+/// String class
 class MY3D_API String
 {
 public:
-    String() noexcept : length_(0), capacity_(0), buffer_(&endZero) { }
+    using Iterator = RandomAccessIterator<char>;
+    using ConstIterator = RandomAccessConstIterator<char>;
 
+    /// Construct empty
+    String() noexcept : length_(0), capacity_(0), buffer_(&endZero) { }
+    /// Construct from another string
     String(const String& str) : length_(0), capacity_(0), buffer_(&endZero)
     {
         *this = str;
     }
-
+    /// Move-construct from another string
     String(String&& str) noexcept : length_(0), capacity_(0), buffer_(&endZero)
     {
         Swap(str);
     }
-
+    /// Construct from a C string.
     String(const char* str) : length_(0), capacity_(0), buffer_(&endZero)
     {
         *this = (const char*) str;
     }
-
+    /// Construct from a C string.
     String(char* str) : length_(0), capacity_(0), buffer_(&endZero)
     {
         *this = (const char*) str;
@@ -177,6 +190,30 @@ public:
     bool operator !=(const String& rhs) const { return strcmp(CString(), rhs.CString()) != 0; }
     /// Test inequality with C string
     bool operator !=(const char* rhs) const { return strcmp(CString(), rhs) != 0; }
+    /// Return char at index
+    char& operator [](unsigned index)
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return const char at index
+    const char& operator [](unsigned index) const
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return char at index
+    char& At(unsigned index)
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return const char at index
+    const char& At(unsigned index) const
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
     /// Append a string
     String& Append(const String& str);
     /// Append a C string
@@ -193,12 +230,31 @@ public:
     unsigned Capacity() const { return capacity_; }
     /// Return whether the string is empty
     bool Empty() const { return length_ == 0; }
+    /// Return comparison result with a string.
+    int Compare(const String& str, bool caseSensitive = true) const;
+    /// Return comparison result with a C string.
+    int Compare(const char* str, bool caseSensitive = true) const;
+    /// Swap with another string
     void Swap(String& str);
+    /// Set new capacity.
+    void Reserve(unsigned newCapacity);
     /// CLear the sting
     void Clear();
+    /// Reallocate so that no extra memory is used.
     void Compact();
+    /// Resize the string.
     void Resize(unsigned newLength);
+    /// Return iterator to the beginning
+    Iterator Begin() { return Iterator(buffer_); }
+    /// Return const iterator to the beginning
+    ConstIterator Begin() const { return ConstIterator(buffer_); }
+    /// Return iterator to the end
+    Iterator End() { return Iterator(buffer_ + length_); }
+    /// Return const iterator to the end
+    ConstIterator End() const { return ConstIterator(buffer_ + length_); }
+    /// Return first char, or 0 if empty
     char Front() const { return buffer_[0]; }
+    /// Return last char, or 0 if empty
     char Back() const { return length_ ? buffer_[length_ - 1] : buffer_[0]; }
     /// Return hash value for HashSet & HashMap
     unsigned ToHash() const
@@ -227,27 +283,28 @@ public:
     static const unsigned MIN_CAPACITY = 8;
     /// Empty string
     static const String EMPTY;
-
 private:
-
+    /// Move a range of characters within the string.
+    void MoveRange(unsigned  dest, unsigned src, unsigned count)
+    {
+        if (count)
+            memmove(buffer_ + dest, buffer_ + src, count);
+    }
+    /// Copy chars from one buffer to another.
     static void CopyChars(char* dest, const char* src, unsigned count)
     {
-        char* end = dest + count;
-        while (dest != end)
-        {
-            *dest = *src;
-            ++dest;
-            ++src;
-        }
+        if (count)
+            memcpy(dest, src, count);
     }
-
+    /// String length.
     unsigned length_;
+    /// Capacity, zero if buffer not allocated.
     unsigned capacity_;
+    /// String buffer, point to &endZero if buffer is not allocated.
     char* buffer_;
-
+    /// End zero for empty strings.
     static char endZero;
 };
-
 
 /// Add a string to a C string
 inline String operator +(const char* lhs, const String& rhs)
@@ -256,5 +313,55 @@ inline String operator +(const char* lhs, const String& rhs)
     ret += rhs;
     return ret;
 }
+
+/// Wide character string. Only meant for converting from String and passing to the operating system where necessary.
+class MY3D_API WString
+{
+public:
+    /// Construct empty
+    WString();
+    /// Construct from a string
+    explicit WString(const String& str);
+    /// Destruct
+    ~WString() noexcept;
+    /// Return char at index
+    wchar_t& operator[](unsigned index)
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return const char at index
+    const wchar_t& operator[](unsigned index) const
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return char at index
+    wchar_t& At(unsigned index)
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return const char at index
+    const wchar_t& At(unsigned index) const
+    {
+        assert(index < length_);
+        return buffer_[index];
+    }
+    /// Return c string
+    const wchar_t* operator*() const { return buffer_; }
+    /// Return length
+    unsigned Length() const { return length_; }
+    /// Return whether the string is empty
+    bool Empty() const { return length_ == 0; }
+    /// Return character data
+    const wchar_t* CString() const { return buffer_; }
+private:
+    /// String length
+    unsigned length_;
+    /// String buffer, null if not allocated
+    wchar_t* buffer_;
+};
+
 }
 

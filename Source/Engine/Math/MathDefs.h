@@ -105,6 +105,12 @@ template <class T> inline T Pow(T x, T y) { return pow(x, y); }
 template <class T> inline T Ln(T x) { return log(x); }
 /// Return square root of X.
 template <class T> inline T Sqrt(T x) { return sqrt(x); }
+/// Return a representation of the specified floating-point value as a single format bit layout.
+inline unsigned FloatToRawIntBits(float value)
+{
+    unsigned u = *((unsigned*)&value);
+    return u;
+}
 
 inline constexpr unsigned SDBMHash(unsigned hash, unsigned char c) { return c + (hash << 6u) + (hash << 16u) - hash; }
 

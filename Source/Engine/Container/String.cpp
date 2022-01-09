@@ -54,9 +54,27 @@ void String::Clear()
     Resize(0);
 }
 
+void String::Reserve(unsigned newCapacity)
+{
+    if (newCapacity < length_ + 1)
+        newCapacity = length_ + 1;
+    if (newCapacity == capacity_)
+        return;
+
+    auto* newBuffer = new char[newCapacity];
+    // Move the existing data to the new buffer, then delete the old buffer
+    CopyChars(newBuffer, buffer_, length_ + 1);
+    if (capacity_)
+        delete[] buffer_;
+
+    capacity_ = newCapacity;
+    buffer_ = newBuffer;
+}
+
 void String::Compact()
 {
-
+    if (capacity_)
+        Reserve(length_ + 1);
 }
 
 void String::Resize(unsigned int newLength)
@@ -343,5 +361,40 @@ String& String::Append(const char *str)
     return *this += str;
 }
 
+int String::Compare(const String& str, bool caseSensitive) const
+{
+    return Compare(CString(), str.CString(), caseSensitive);
+}
+
+int String::Compare(const char* str, bool caseSensitive) const
+{
+    return Compare(CString(), str, caseSensitive);
+}
+
+WString::WString()
+    : length_(0)
+    , buffer_(nullptr)
+{
+}
+
+WString::WString(const String& str)
+    : length_(0)
+    , buffer_(nullptr)
+{
+#ifdef PLATFORM_MSVC
+#else
+    Resize(str.LengthUTF8());
+
+    unsigned byteOffset = 0;
+    wchar_t* dest = buffer_;
+    while (byteOffset < str.Length())
+        *dest++ = (wchar_t)str.NextUTF8Char(byteOffset);
+#endif
+}
+
+WString::~WString() noexcept
+{
+    delete[] buffer_;
+}
 }
 

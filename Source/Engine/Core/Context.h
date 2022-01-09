@@ -2,6 +2,7 @@
 
 #include "My3D.h"
 #include "Core/Object.h"
+#include "Core/Variant.h"
 #include "Core/StringHash.h"
 #include "Container/String.h"
 #include "Container/RefCounted.h"
@@ -9,9 +10,37 @@
 #include "Container/HashMap.h"
 
 
-
 namespace My3D
 {
+
+    /// Tracking structure for event receivers
+    class MY3D_API EventReceiverGroup : public RefCounted
+    {
+    public:
+        /// Construct
+        EventReceiverGroup()
+            : inSend_(false)
+            , dirty_(false)
+        {
+        }
+
+        /// Begin send event.
+        void BeginSendEvent();
+        /// End event send. Clean up if necessary
+        void EndSendEvent();
+        /// Add receiver.  Leave holes during send, which requires later cleanup.
+        void Add(Object* object);
+        /// Remove receiver
+        void Remove(Object* object);
+        /// Receivers. My contains holes during sending
+        PODVector<Object*> receivers_;
+
+    private:
+        /// "In send" recursion counter
+        unsigned inSend_;
+        /// Cleanup required flag
+        bool dirty_;
+    };
 
 /// My3D execution context. Provides access to subsystems, object factories and attributes.
 class MY3D_API Context : public RefCounted
@@ -54,6 +83,14 @@ public:
     Object* GetSubsystem(StringHash type) const;
     /// Template version of return a subsystem
     template<typename T> T* GetSubSystem() const;
+    /// Return global variable based on key.
+    const Variant& GetGlobalVar(StringHash key) const;
+    /// Return all global variables.
+    const VariantMap& GetGlobalVars() const { return globalVars_; }
+    /// Set global variable with the respective key and value.
+    void SetGlobalVar(StringHash key, const Variant& value);
+    /// Event receivers for non-specific events
+    HashMap<StringHash, SharedPtr<EventReceiverGroup>> eventReceivers_;
 
 private:
     /// Object factories
@@ -62,6 +99,8 @@ private:
     HashMap<StringHash, SharedPtr<Object>> subsystems_;
     /// Object categories
     HashMap<String, Vector<StringHash>> objectCategories_;
+    /// Variant map for global variables that can persist throughout application execution.
+    VariantMap globalVars_;
 };
 
 template<typename T> void Context::RegisterFactory()

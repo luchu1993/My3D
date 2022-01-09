@@ -231,7 +231,41 @@ public:
 
         return *this;
     }
+    /// Assign from a weak pointer.
+    WeakPtr<T>& operator =(const WeakPtr<T>& rhs)
+    {
+        if (ptr_ == rhs.ptr_ && refCount_ == rhs.refCount_)
+            return *this;
 
+        WeakPtr<T> copy(rhs);
+        Swap(copy);
+
+        return *this;
+    }
+    /// Move-assign from another weak pointer.
+    WeakPtr<T>& operator =(WeakPtr<T>&& rhs) noexcept
+    {
+        WeakPtr<T> copy(std::move(rhs));
+        Swap(copy);
+
+        return *this;
+    }
+    /// Assign from a raw pointer
+    WeakPtr<T>& operator =(T* ptr)
+    {
+        RefCount* refCount = ptr ? ptr_->RefCountPtr() : nullptr;
+        if (ptr_ == ptr && refCount_ == refCount)
+            return *this;
+
+        ReleaseRef();
+        ptr_ = ptr;
+        refCount = refCount;
+        AddRef();
+
+        return *this;
+    }
+    /// Convert to a raw pointer, null if the object is expired.
+    operator T*() const { return Get(); }   // NOLINT(google-explicit-constructor)
     SharedPtr<T> Lock() const
     {
         if (Expired())

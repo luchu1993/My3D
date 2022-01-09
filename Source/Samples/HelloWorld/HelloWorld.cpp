@@ -3,6 +3,7 @@
 #include "Container/HashMap.h"
 #include "Container/Vector.h"
 #include "IO/Log.h"
+#include "Core/Variant.h"
 
 
 using namespace My3D;
@@ -90,6 +91,20 @@ public:
         for (const auto& kv : Map2)
         {
             MY3D_LOGINFOF("%f = %s", kv.first_.value, *kv.second_);
+        }
+
+        // Test variant
+        MY3D_LOGINFO("----------------------------- Map Variant ------------------------------");
+        Variant var = 100.0f;
+        MY3D_LOGINFOF("TypeName = %s, Value = %f", *var.GetTypeName(), var.Get<float>());
+
+        VariantMap M;
+        M.Populate("TestKey", "TestValue");
+        var = M;
+
+        for (const auto& kv : M)
+        {
+            MY3D_LOGINFOF("TypeName = %s, Value = { Key = %s, Value = %s }", *var.GetTypeName(), *kv.first_.ToString(), *kv.second_.Get<String>());
         }
 
         MY3D_LOGINFO("Setup My3D Engine!");

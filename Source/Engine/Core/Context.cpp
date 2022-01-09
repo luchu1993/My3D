@@ -5,8 +5,55 @@
 
 namespace My3D
 {
-
     static int sdlInitCounter = 0;
+
+    void EventReceiverGroup::BeginSendEvent()
+    {
+        ++inSend_;
+    }
+
+    void EventReceiverGroup::EndSendEvent()
+    {
+        assert(inSend_ > 0);
+        --inSend_;
+
+        if (inSend_ == 0 && dirty_)
+        {
+            auto it = receivers_.Begin();
+            while (it != receivers_.End())
+            {
+                if (*it == nullptr)
+                {
+                    it = receivers_.Erase(it);
+                }
+                else
+                    ++it;
+            }
+
+            dirty_ = false;
+        }
+    }
+
+    void EventReceiverGroup::Add(Object *object)
+    {
+        if (object)
+            receivers_.Push(object);
+    }
+
+    void EventReceiverGroup::Remove(Object *object)
+    {
+        if (inSend_ > 0)
+        {
+            auto it = receivers_.Find(object);
+            if (it != receivers_.End())
+            {
+                (*it) = nullptr;
+                dirty_ = true;
+            }
+        }
+        else
+            receivers_.Remove(object);
+    }
 
     Context::Context()
     {
@@ -18,7 +65,6 @@ namespace My3D
         subsystems_.Clear();
         factories_.Clear();
     }
-
 
     SharedPtr<Object> Context::CreateObject(StringHash objectType)
     {
@@ -84,7 +130,6 @@ namespace My3D
             MY3D_LOGERROR("Too many calls to Context::ReleaseSDL");
     }
 
-    /// Return subsystem by type
     Object* Context::GetSubsystem(StringHash type) const
     {
         auto it = subsystems_.Find(type);
@@ -92,5 +137,16 @@ namespace My3D
             return it->second_;
         else
             return nullptr;
+    }
+
+    const Variant& Context::GetGlobalVar(StringHash key) const
+    {
+        auto it = globalVars_.Find(key);
+        return it != globalVars_.End() ? it->second_ : Variant::EMPTY;
+    }
+
+    void Context::SetGlobalVar(StringHash key, const Variant& value)
+    {
+        globalVars_[key] = value;
     }
 }
