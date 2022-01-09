@@ -74,10 +74,10 @@ void Log::Write(int level, const String &message)
 
     String formattedMessage = logLevelPrefixes[level];
     formattedMessage += ": " + message;
-    logInstance->lastMessage = message;
+    logInstance->lastMessage_ = message;
 
     if (logInstance->timeStamp_)
-        formattedMessage = "[" + Time::GetTimeStamp() + "]" + formattedMessage;
+        formattedMessage = "[" + Time::GetTimeStamp() + "] " + formattedMessage;
 
     if (logInstance->quiet_)
     {
@@ -94,7 +94,7 @@ void Log::WriteRaw(const String &message, bool error)
 {
     if (!logInstance || logInstance->inWrite_)
         return;
-    logInstance->lastMessage = message;
+    logInstance->lastMessage_ = message;
 
     if (logInstance->quiet_)
     {

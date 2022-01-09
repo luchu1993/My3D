@@ -53,7 +53,7 @@ public:
         DoInsertElements(0, start, end, CopyTag{});
     }
     /// Move-construct from another vector
-    Vector(Vector<T>&& vector)
+    Vector(Vector<T>&& vector) noexcept
     {
         Swap(vector);
     }

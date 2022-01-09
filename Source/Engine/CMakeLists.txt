@@ -5,7 +5,8 @@ file (GLOB_RECURSE ENGINE_HDRS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 add_definitions(-DBUILD_ENGINE)
 set (ENGINE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(Engine SHARED
+
+add_library(Engine ${ENGINE_BUILD_TYPE}
     ${ENGINE_SRCS}
     ${ENGINE_HDRS})
 

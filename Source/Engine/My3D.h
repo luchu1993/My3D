@@ -3,15 +3,20 @@
 //
 #pragma once
 
-#ifdef PLATFORM_MSVC
-    #ifdef BUILD_ENGINE
-        #define MY3D_API __declspec(dllexport)
+#ifdef ENGINE_BUILD_SHARED
+    #ifdef PLATFORM_MSVC
+        #ifdef BUILD_ENGINE
+            #define MY3D_API __declspec(dllexport)
+        #else
+            #define MY3D_API __declspec(dllimport)
+        #endif
     #else
-        #define MY3D_API __declspec(dllimport)
+        #define MY3D_API
     #endif
 #else
     #define MY3D_API
 #endif
+
 
 #ifdef PLATFORM_MSVC
     #pragma warning(disable: 4251)

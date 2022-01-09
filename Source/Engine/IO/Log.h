@@ -39,7 +39,7 @@ private:
     /// Send logging event
     static void SendLogEvent(const String& message, int level);
     /// Last log message
-    String lastMessage;
+    String lastMessage_;
     /// Logging level
     int level_;
     /// Timestamp log messages flag
@@ -66,10 +66,8 @@ private:
 #define MY3D_LOGWARNINGF(format, ...) My3D::Log::WriteFormat(My3D::LOG_WARNING, format, ##__VA_ARGS__)
 #define MY3D_LOGERRORF(format, ...) My3D::Log::WriteFormat(My3D::LOG_ERROR, format, ##__VA_ARGS__)
 #define MY3D_LOGRAWF(format, ...) My3D::Log::WriteFormat(My3D::LOG_RAW, format, ##__VA_ARGS__)
-
-#elif
-
-#define MY3D_LOG(level, message)
+#else
+#define MY3D_LOG(message)
 #define MY3D_LOGTRACE(message)
 #define MY3D_LOGDEBUG(message)
 #define MY3D_LOGINFO(message)
@@ -77,13 +75,13 @@ private:
 #define MY3D_LOGERROR(message)
 #define MY3D_LOGRAW(message)
 
-#define MY3D_LOGF(level, format, ...)
-#define MY3D_LOGTRACEF(format, ...)
-#define MY3D_LOGDEBUGF(format, ...)
-#define MY3D_LOGINFOF(format, ...)
-#define MY3D_LOGWARNINGF(format, ...)
-#define MY3D_LOGERRORF(format, ...)
-#define MY3D_LOGRAWF(format, ...)
+#define MY3D_LOGF(...)
+#define MY3D_LOGTRACEF(...)
+#define MY3D_LOGDEBUGF(...)
+#define MY3D_LOGINFOF(...)
+#define MY3D_LOGWARNINGF(...)
+#define MY3D_LOGERRORF(...)
+#define MY3D_LOGRAWF(...)
 
 #endif
 

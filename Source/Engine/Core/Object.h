@@ -118,22 +118,22 @@ protected:
 };
 
 /// Template implementation of object factory
-    template <typename T> class ObjectFactoryImpl : public ObjectFactory
+template <typename T> class ObjectFactoryImpl : public ObjectFactory
+{
+public:
+    /// Construct
+    explicit ObjectFactoryImpl(Context* context)
+        : ObjectFactory(context)
     {
-    public:
-        /// Construct
-        ObjectFactoryImpl(Context* context)
-            : ObjectFactory(context)
-        {
-            typeInfo_ = T::GetTypeInfoStatic();
-        }
+        typeInfo_ = T::GetTypeInfoStatic();
+    }
 
-        /// Create an object of specific type
-        SharedPtr<Object> CreateObject() override
-        {
-            return SharedPtr<object>(new T(context_));
-        }
-    };
+    /// Create an object of specific type
+    SharedPtr<Object> CreateObject() override
+    {
+        return SharedPtr<Object>(new T(context_));
+    }
+};
 
 }
 
