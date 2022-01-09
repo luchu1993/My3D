@@ -8,7 +8,7 @@
 #include "Core/Object.h"
 #include "Core/Context.h"
 #include "Container/Ptr.h"
-#include "Launch/HelloWorld.h"
+#include "Launch/Main.h"
 #include "Launch/Engine.h"
 
 
