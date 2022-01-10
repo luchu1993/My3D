@@ -23,7 +23,7 @@ public:
     /// Construct a null shared pointer
     SharedPtr() noexcept : ptr_(nullptr) { }
     /// Construct a null shared pointer
-    explicit SharedPtr(std::nullptr_t) noexcept : ptr_(nullptr) { }
+    SharedPtr(std::nullptr_t) noexcept : ptr_(nullptr) { }
     /// Construct from a raw pointer
     explicit SharedPtr(T* ptr) noexcept: ptr_(ptr) { AddRef(); }
     /// Copy-construct from another shared pointer

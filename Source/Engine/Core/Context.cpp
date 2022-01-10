@@ -56,6 +56,7 @@ namespace My3D
     }
 
     Context::Context()
+        : eventHandler_(nullptr)
     {
         Thread::SetMainThread();
     }
@@ -64,6 +65,34 @@ namespace My3D
     {
         subsystems_.Clear();
         factories_.Clear();
+
+        // Delete allocated event data maps
+        for (auto it = eventDataMaps_.Begin(); it != eventDataMaps_.End(); ++it)
+            delete *it;
+        eventDataMaps_.Clear();
+    }
+
+    bool Context::RequireSDL(unsigned sdlFlags)
+    {
+        ++sdlInitCounter;
+        if (sdlInitCounter == 1)
+        {
+            MY3D_LOGDEBUG("Initialize SDL");
+        }
+
+        return true;
+    }
+
+    void Context::ReleaseSDL()
+    {
+        --sdlInitCounter;
+        if (sdlInitCounter == 0)
+        {
+            MY3D_LOGDEBUG("Quitting SDL");
+        }
+
+        if (sdlInitCounter < 0)
+            MY3D_LOGERROR("Too many calls to Context::ReleaseSDL");
     }
 
     SharedPtr<Object> Context::CreateObject(StringHash objectType)
@@ -73,6 +102,12 @@ namespace My3D
             return it->second_->CreateObject();
         else
             return SharedPtr<Object>();
+    }
+
+    const String& Context::GetTypeName(StringHash objectType) const
+    {
+        auto it = factories_.Find(objectType);
+        return it != factories_.End() ? it->second_->GetTypeName() : String::EMPTY;
     }
 
     void Context::RegisterFactory(ObjectFactory* factory)
@@ -107,29 +142,6 @@ namespace My3D
             subsystems_.Erase(it);
     }
 
-    bool Context::RequireSDL(unsigned sdlFlags)
-    {
-        ++sdlInitCounter;
-        if (sdlInitCounter == 1)
-        {
-            MY3D_LOGDEBUG("Initialize SDL");
-        }
-
-        return true;
-    }
-
-    void Context::ReleaseSDL()
-    {
-        --sdlInitCounter;
-        if (sdlInitCounter == 0)
-        {
-            MY3D_LOGDEBUG("Quitting SDL");
-        }
-
-        if (sdlInitCounter < 0)
-            MY3D_LOGERROR("Too many calls to Context::ReleaseSDL");
-    }
-
     Object* Context::GetSubsystem(StringHash type) const
     {
         auto it = subsystems_.Find(type);
@@ -148,5 +160,83 @@ namespace My3D
     void Context::SetGlobalVar(StringHash key, const Variant& value)
     {
         globalVars_[key] = value;
+    }
+
+    VariantMap& Context::GetEventDataMap()
+    {
+        unsigned nestingLevel = eventSenders_.Size();
+        while (eventDataMaps_.Size() < nestingLevel + 1)
+        {
+            eventDataMaps_.Push(new VariantMap());
+        }
+
+        VariantMap& ret = *eventDataMaps_[nestingLevel];
+        ret.Clear();
+        return ret;
+    }
+
+    Object* Context::GetEventSender() const
+    {
+        if (!eventSenders_.Empty())
+            return eventSenders_.Back();
+        else
+            return nullptr;
+    }
+
+    void Context::AddEventReceiver(Object *receiver, StringHash eventType)
+    {
+        auto& group = eventReceivers_[eventType];
+        if (!group)
+            group = new EventReceiverGroup();
+        group->Add(receiver);
+    }
+
+    void Context::AddEventReceiver(Object *receiver, Object *sender, StringHash eventType)
+    {
+        auto& group = specificEventReceivers_[sender][eventType];
+        if (!group)
+            group = new EventReceiverGroup();
+        group->Add(receiver);
+    }
+
+    void Context::RemoveEventSender(Object *sender)
+    {
+        auto i = specificEventReceivers_.Find(sender);
+        if (i != specificEventReceivers_.End())
+        {
+            for (const auto& receivers : i->second_)
+            {
+                for (const auto &receiver : receivers.second_->receivers_)
+                {
+                    if (receiver)
+                        receiver->RemoveEventSender(sender);
+                }
+            }
+            specificEventReceivers_.Erase(i);
+        }
+    }
+
+    void Context::RemoveEventReceiver(Object *receiver, StringHash eventType)
+    {
+        EventReceiverGroup* group = GetEventReceivers(eventType);
+        if (group)
+            group->Remove(receiver);
+    }
+
+    void Context::RemoveEventReceiver(Object *receiver, Object *sender, StringHash eventType)
+    {
+        EventReceiverGroup* group = GetEventReceivers(sender, eventType);
+        if (group)
+            group->Remove(receiver);
+    }
+
+    void Context::BeginSendEvent(Object *sender, StringHash eventType)
+    {
+        eventSenders_.Push(sender);
+    }
+
+    void Context::EndSendEvent()
+    {
+        eventSenders_.Pop();
     }
 }
