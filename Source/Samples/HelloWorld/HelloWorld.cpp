@@ -4,6 +4,7 @@
 #include "Container/Vector.h"
 #include "IO/Log.h"
 #include "Core/Variant.h"
+#include "Container/HashSet.h"
 
 
 using namespace My3D;
@@ -92,9 +93,20 @@ public:
         {
             MY3D_LOGINFOF("%f = %s", kv.first_.value, *kv.second_);
         }
+        // Test hashset
+        MY3D_LOGINFO("----------------------------- Test Hashset ------------------------------");
+        HashSet<String> Set;
+        Set.Insert("hello world");
+        Set.Insert("Hello World");
+        Set.Insert("Hello World");
+
+        for (auto const& item : Set)
+        {
+            MY3D_LOGINFO(item);
+        }
 
         // Test variant
-        MY3D_LOGINFO("----------------------------- Map Variant ------------------------------");
+        MY3D_LOGINFO("----------------------------- Test Variant ------------------------------");
         Variant var = 100.0f;
         MY3D_LOGINFOF("TypeName = %s, Value = %f", *var.GetTypeName(), var.Get<float>());
 

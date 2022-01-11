@@ -63,19 +63,30 @@ class MY3D_API Object : public RefCounted
     friend class Context;
 
 public:
+    /// Construct
     explicit Object(Context* context);
+    /// Destruct. Clean up self from event sender & receiver structures
     ~Object() override;
-
+    /// Return type hash
     virtual StringHash GetType() const = 0;
+    /// Return type name
     virtual const String& GetTypeName() const = 0;
+    /// Return type info
     virtual const TypeInfo* GetTypeInfo() const = 0;
-
+    /// Return event
     static const TypeInfo* GetTypeInfoStatic() { return nullptr; }
+    /// Check current instance is type of specified type
     bool IsInstanceOf(StringHash type) const;
+    /// Check current instance is type of specified type
     bool IsInstanceOf(const TypeInfo* typeInfo) const;
+    /// Check current instance is type of specified type
     template<typename T> bool IsInstanceOf() const { return IsInstanceOf(T::GetStaticTypeInfo()); }
+    /// Cast the object to specified most derived class
     template<typename T> T* Cast() { return IsInstanceOf<T>() ?  static_cast<T*>(this) : nullptr; }
+    /// Cast to the object to specified most derived class
     template<typename T> const T* Cast() const { return IsInstanceOf<T>() ?  static_cast<const T*>(this) : nullptr; }
+    /// Return object category
+    const String& GetCategory() const;
 
     /// Handle event
     virtual void OnEvent(Object* sender, StringHash eventType, VariantMap& eventData);
@@ -85,10 +96,35 @@ public:
     EventHandler* GetEventHandler() const;
     /// Return a preallocated map for event data
     VariantMap& GetEventDataMap() const;
+    /// Subscribe to an event that can be sent by an sender
+    void SubscribeToEvent(StringHash eventType, EventHandler* handler);
+    /// Subscribe to a specific sender's event
+    void SubscribeToEvent(Object* sender, StringHash eventType, EventHandler* handler);
+    /// Subscribe to an event that can be sent by an sender
+    void SubscribeToEvent(StringHash eventType, const std::function<void(StringHash, VariantMap&)>&function, void* userData= nullptr);
+    /// Unsubscribe from an event
+    void UnsubscribeFromEvent(StringHash eventType);
+    /// Unsubscribe from a specific sender's event
+    void UnsubscribeFromEvent(Object* sender, StringHash eventType);
+    /// Unsubscribe from a specific sender's events
+    void UnsubscribeFromEvents(Object* sender);
+    /// Unsubscribe from all events
+    void UnsubscribeFromAllEvents();
+    /// Unsubscribe from all events except those listed, and optionally only those with userdata (script registered events)
+    void UnsubscribeFromAllEventsExcept(const PODVector<StringHash>& exceptions, bool onlyUserData);
+    /// Return whether has subscribed to an event without specific sender
+    bool HasSubscribedToEvent(StringHash eventType) const;
+    /// Return whether has subscribed to a specific sender's event
+    bool HasSubscribedToEvent(Object* sender, StringHash eventType) const;
     /// Send event to all subscribers
     void SendEvent(StringHash eventType);
     /// Send event with parameters to all subscribers
     void SendEvent(StringHash eventType, VariantMap& eventData);
+    /// Send event with variadic parameter pairs to all subscribers.
+    template<typename... Args> void SendEvent(StringHash eventType, Args... args)
+    {
+        SendEvent(eventType, GetEventDataMap().Populate(args...));
+    }
     /// Block object from sending and receiving events
     void SetBlockEvents(bool block) { blockEvents_ = block; }
     /// Return sending and receiving events blocking status
@@ -97,16 +133,29 @@ public:
     /// Return execution context
     Context* GetContext() const { return context_; }
 
+    /// Return global variable based on key
+    const Variant& GetGlobalVar(StringHash key) const;
+    /// Return all global variables
+    const VariantMap& GetGlobalVars() const;
+    /// Set global variable with the respective key an value
+    void SetGlobalVar(StringHash key, const Variant& value);
+
     /// Return subsystem by type
     Object* GetSubSystem(StringHash type) const;
+    /// Template version of returning a subsystem
     template<typename T> T* GetSubSystem() const;
-
 
 protected:
     /// Execution context
     Context* context_;
 
 private:
+    /// Find the first event handler with no specific sender
+    EventHandler* FindEventHandler(StringHash eventType, EventHandler** previous = nullptr) const;
+    /// Find the first event handler with specific handler
+    EventHandler* FindSpecificEventHandler(Object* sender, EventHandler** previous = nullptr) const;
+    /// Find the first event handler with specific handler and event type
+    EventHandler* FindSpecificEventHandler(Object* sender, StringHash eventType, EventHandler** previous = nullptr) const;
     /// Remove event handlers related to a specific sender
     void RemoveEventSender(Object* sender);
     /// Event handlers.
