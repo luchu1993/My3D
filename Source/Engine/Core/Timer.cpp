@@ -3,6 +3,7 @@
 //
 
 #include "Timer.h"
+#include "Core/CoreEvents.h"
 
 #ifdef PLATFORM_MSVC
 #include <windows.h>
@@ -11,7 +12,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 #endif
-
 #include <ctime>
 
 namespace My3D
@@ -59,4 +59,25 @@ void Time::Sleep(unsigned int mSec)
 #endif
 }
 
+void Time::BeginFrame(float timeStep)
+{
+    ++frameNumber_;
+    if (!frameNumber_)
+        ++frameNumber_;
+
+    timeStep_ = timeStep;
+
+    // Frame begin event
+    using namespace BeginFrame;
+    VariantMap& eventData = GetEventDataMap();
+    eventData[P_FRAMENUMBER] = frameNumber_;
+    eventData[P_TIMESTEP] = timeStep_;
+
+    SendEvent(E_BEGINFRAME, eventData);
+}
+
+void Time::EndFrame()
+{
+    SendEvent(E_ENDFRAME);
+}
 }

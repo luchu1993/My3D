@@ -3,6 +3,7 @@
 #include "Container/HashMap.h"
 #include "Container/Vector.h"
 #include "IO/Log.h"
+#include "Input/Input.h"
 #include "Core/Variant.h"
 #include "Container/HashSet.h"
 
@@ -35,6 +36,13 @@ public:
 
     void Setup() override
     {
+        MY3D_LOGINFO("Setup My3D Engine!");
+    }
+
+    void Start() override
+    {
+        MY3D_LOGINFO("Start My3D Engine!");
+
         /// Test Vector
         Vector<String> v;
         v.Push("Alice");
@@ -119,13 +127,8 @@ public:
             MY3D_LOGINFOF("TypeName = %s, Value = { Key = %s, Value = %s }", *var.GetTypeName(), *kv.first_.ToString(), *kv.second_.Get<String>());
         }
 
-        MY3D_LOGINFO("Setup My3D Engine!");
-    }
-
-    void Start() override
-    {
-        MY3D_LOGINFO("Start My3D Engine!");;
-        exitCode_ = EXIT_FAILURE;
+        using namespace ExitRequested;
+        SendEvent(E_EXITREQUESTED);
     }
 
     void Stop() override

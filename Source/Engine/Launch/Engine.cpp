@@ -6,6 +6,7 @@
 #include "Core/Context.h"
 #include "IO/Log.h"
 #include "Core/Timer.h"
+#include "Input/InputEvents.h"
 
 #include <cassert>
 
@@ -23,12 +24,12 @@ Engine::Engine(Context *context)
 {
     // Register self as a subsystem
     context_->RegisterSubsystem(this);
-
 #ifdef MY3D_LOGGING
     context_->RegisterSubsystem<Log>();
 #endif
+    context->RegisterSubsystem<Time>();
 
-    context->RemoveSubsystem<Time>();
+    SubscribeToEvent(E_EXITREQUESTED, MY3D_HANDLER(Engine, HandleExitRequested));
 }
 
 bool Engine::Initialize()
@@ -36,6 +37,7 @@ bool Engine::Initialize()
     if (initialized_)
         return true;
 
+    MY3D_LOGINFO("Initialized engine");
     initialized_ = true;
     return true;
 }
@@ -46,10 +48,14 @@ void Engine::RunFrame()
 
     if (exiting_)
         return;
+    auto* time = GetSubSystem<Time>();
+    time->BeginFrame(timeStep_);
 
     Update();
     Render();
     ApplyFrameLimit();
+
+    time->EndFrame();
 }
 
 void Engine::Render()
@@ -68,14 +74,19 @@ void Engine::Exit()
     DoExit();
 }
 
-void Engine::DoExit()
-{
-    exiting_ = true;
-}
-
 void Engine::Update()
 {
 
+}
+
+void Engine::HandleExitRequested(StringHash eventType, VariantMap &eventData)
+{
+    DoExit();
+}
+
+void Engine::DoExit()
+{
+    exiting_ = true;
 }
 
 }

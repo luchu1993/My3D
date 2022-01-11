@@ -315,11 +315,11 @@ private:
 /// Describe an event's hash ID and begin a namespace in which to define its parameters
 #define MY3D_EVENT(eventID, eventName) static const My3D::StringHash eventID(#eventName); namespace eventName
 /// Describe an event's parameter hash ID. Should be used inside an event namespace.
-#define NY3D_PARAM(paramID, paramName) static const My3D::StringHash paramID(#paramName);
+#define MY3D_PARAM(paramID, paramName) static const My3D::StringHash paramID(#paramName);
 /// Convenience macro to construct an EventHandler that points to a receiver object and its member function
-#define MY3D_HANDLER(className, function) (new M3D::EventHandlerImpl<className>(this, &className::function))
+#define MY3D_HANDLER(className, function) (new My3D::EventHandlerImpl<className>(this, &className::function))
 /// Convenience macro to construct an EventHandler that points to a receiver object and its member function, and also defines a userdata pointer.
-#define MY3D_HANDLER_USERDATA(className, function, userData) (new MY3D::EventHandlerImpl<className>(this, &className::function, userData))
+#define MY3D_HANDLER_USERDATA(className, function, userData) (new My3D::EventHandlerImpl<className>(this, &className::function, userData))
 
 }
 

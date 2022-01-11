@@ -46,6 +46,8 @@ public:
     void Exit();
 
 private:
+    /// Handle exit requested event. Auto-exited if enabled
+    void HandleExitRequested(StringHash eventType, VariantMap& eventData);
     void DoExit();
 
     float timeStep_;
