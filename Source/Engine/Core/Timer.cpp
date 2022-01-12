@@ -16,6 +16,10 @@
 
 namespace My3D
 {
+
+bool HiresTimer::supported(false);
+long long HiresTimer::frequency(1000);
+
 static unsigned Tick()
 {
 #ifdef PLATFORM_MSVC
@@ -24,6 +28,24 @@ static unsigned Tick()
     struct timeval time;
     gettimeofday(&time, nullptr);
     return (unsigned)(time.tv_sec * 1000 + time.tv_usec / 1000);
+#endif
+}
+
+static long long HiresTick()
+{
+#ifdef PLATFORM_MSVC
+    if (HiresTimer::IsSupported())
+    {
+        LARGE_INTEGER counter;
+        QueryPerformanceCounter(&counter);
+        return counter.QuadPart;
+    }
+    else
+        return timeGetTime();
+#else
+    struct timeval time{};
+    gettimeofday(&time, nullptr);
+    return time.tv_sec * 1000000LL + time.tv_usec;
 #endif
 }
 
@@ -47,7 +69,21 @@ void Timer::Reset()
 
 Time::Time(Context *context)
     : Base(context)
+    , frameNumber_(0)
+    , timeStep_(0.0f)
+    , timerPeriod_(0)
 {
+#ifdef PLATFORM_MSVC
+    LARGE_INTEGER frequency;
+    if (QueryPerformanceFrequency(&frequency))
+    {
+        HiresTimer::frequency = frequency.QuadPart;
+        HiresTimer::supported = true;
+    }
+#else
+    HiresTimer::frequency = 1000000;
+    HiresTimer::supported = true;
+#endif
 }
 
 Time::~Time() noexcept = default;
@@ -126,5 +162,28 @@ float Time::GetElapsedTime()
     return elapsedTime_.GetMSec(false) / 1000.0f;
 }
 
+HiresTimer::HiresTimer()
+{
+    Reset();
+}
+
+long long HiresTimer::GetUSec(bool reset)
+{
+    long long currentTime = HiresTick();
+    long long elapsedTime = currentTime - startTime_;
+
+    if (elapsedTime < 0)
+        elapsedTime = 0;
+
+    if (reset)
+        startTime_ = currentTime;
+
+    return (elapsedTime * 1000000LL) / frequency;
+}
+
+void HiresTimer::Reset()
+{
+    startTime_ = HiresTick();
+}
 
 }

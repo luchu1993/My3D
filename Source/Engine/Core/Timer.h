@@ -31,7 +31,27 @@ private:
 /// High-resolution operating system timer
 class MY3D_API HiresTimer
 {
+    friend class Time;
 
+public:
+    /// Construct
+    HiresTimer();
+    /// Return elapsed microseconds and optional reset
+    long long GetUSec(bool reset);
+    /// Reset the timer
+    void Reset();
+    /// Return if high-resolution timer is supported
+    static bool IsSupported() { return supported; }
+    /// High-resolution timer frequency if supported
+    static long long GetFrequency() { return frequency; }
+
+private:
+    /// Starting clock value in CPU ticks
+    long long startTime_{};
+    /// High-resolution timer support flag
+    static bool supported;
+    /// High-resolution timer frequency
+    static long long frequency;
 };
 
 /// Time and frame counter subsystem

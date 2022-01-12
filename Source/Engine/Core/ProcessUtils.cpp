@@ -16,6 +16,8 @@ namespace My3D
 #ifdef PLATFORM_MSVC
 static bool consoleOpened = false;
 #endif
+static String currentLine;
+static Vector<String> arguments;
 
 void ErrorDialog(const String& title, const String& message)
 {
@@ -61,6 +63,11 @@ void PrintLine(const String& str, bool error)
 void PrintLine(const char* str, bool error)
 {
     fprintf(error ? stderr : stdout, "%s\n", str);
+}
+
+const Vector<String>& GetArguments()
+{
+    return arguments;
 }
 
 }

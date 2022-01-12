@@ -371,6 +371,78 @@ int String::Compare(const char* str, bool caseSensitive) const
     return Compare(CString(), str, caseSensitive);
 }
 
+String String::ToLower() const
+{
+    String ret(*this);
+    for (unsigned i = 0; i < ret.length_; ++i)
+        ret[i] = (char) tolower(buffer_[i]);
+
+    return ret;
+}
+
+String String::ToUpper() const
+{
+    String ret(*this);
+    for (unsigned i = 0; i < ret.length_; ++i)
+        ret[i] = (char) toupper(buffer_[i]);
+
+    return ret;
+}
+
+String String::Trimmed() const
+{
+    unsigned trimStart = 0;
+    unsigned trimEnd = length_;
+
+    while (trimStart < trimEnd)
+    {
+        char c = buffer_[trimStart];
+        if (c != ' ' & c != 9)
+            break;
+        ++trimStart;
+    }
+
+    while (trimEnd > trimStart)
+    {
+        char c = buffer_[trimEnd - 1];
+        if (c != ' ' && c != 9)
+            break;
+        --trimEnd;
+    }
+
+    return Substring(trimStart, trimEnd - trimStart);
+}
+
+String String::Substring(unsigned int pos) const
+{
+    if (pos < length_)
+    {
+        String ret;
+        ret.Resize(length_ - pos);
+        CopyChars(ret.buffer_, buffer_ + pos, ret.length_);
+
+        return ret;
+    }
+    else
+        return String();
+}
+
+String String::Substring(unsigned int pos, unsigned int length) const
+{
+    if (pos < length_)
+    {
+        String ret;
+        if (pos + length > length)
+            length = length_ - pos;
+        ret.Resize(length);
+        CopyChars(ret.buffer_, buffer_ + pos, ret.length_);
+
+        return ret;
+    }
+    else
+        return String();
+}
+
 WString::WString()
     : length_(0)
     , buffer_(nullptr)

@@ -256,6 +256,16 @@ public:
     char Front() const { return buffer_[0]; }
     /// Return last char, or 0 if empty
     char Back() const { return length_ ? buffer_[length_ - 1] : buffer_[0]; }
+    /// Return a substring from position to end
+    String Substring(unsigned pos) const;
+    /// Return a substring with length from position
+    String Substring(unsigned pos, unsigned length) const;
+    /// Return string in uppercase
+    String ToUpper() const;
+    /// Return string in lowercase
+    String ToLower() const;
+    /// Return string with whitespace trimmed from the beginning and the end.
+    String Trimmed() const;
     /// Return hash value for HashSet & HashMap
     unsigned ToHash() const
     {

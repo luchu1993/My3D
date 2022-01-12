@@ -25,6 +25,18 @@ MY3D_EVENT(E_POSTUPDATE, PostUpdate)
     MY3D_PARAM(P_TIMESTEP, TimeStep);
 }
 
+/// Render update event
+MY3D_EVENT(E_RENDERUPDATE, RenderUpdate)
+{
+    MY3D_PARAM(P_TIMESTEP, TimeStep);
+}
+
+/// Post-render update event
+MY3D_EVENT(E_POSTRENDERUPDATE, PostRenderUpdate)
+{
+    MY3D_PARAM(P_TIMESTEP, TimeStep);
+}
+
 /// Frame end event
 MY3D_EVENT(E_ENDFRAME, EndFrame)
 {

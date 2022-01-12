@@ -1,5 +1,7 @@
 #include "Launch/Application.h"
 #include "Launch/Engine.h"
+#include "Core/ProcessUtils.h"
+
 #include <cstdlib>
 
 
@@ -10,6 +12,7 @@ Application::Application(Context *context)
     : Base(context)
     , exitCode_(EXIT_SUCCESS)
 {
+    engineParameters_ = Engine::ParseParameters(GetArguments());
     engine_ = new Engine(context);
 }
 
@@ -21,7 +24,7 @@ int Application::Run()
     if (exitCode_)
         return exitCode_;
 
-    if (!engine_->Initialize())
+    if (!engine_->Initialize(engineParameters_))
     {
         ErrorExit();
         return exitCode_;

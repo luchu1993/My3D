@@ -34,8 +34,13 @@ public:
     void ErrorExit(const String &message = String::EMPTY);
 
 protected:
+    /// Engine instance
     SharedPtr<Engine> engine_;
+    /// Engine parameters map
+    VariantMap engineParameters_;
+    /// Collected startup error log messages.
     String startupErrors_;
+    /// Application exit code
     int exitCode_;
 };
 
