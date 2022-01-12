@@ -47,10 +47,14 @@ public:
     void BeginFrame(float timeStep);
     /// End frame
     void EndFrame();
+    /// Set the low-resolution timer period in milliseconds. 0 resets to the default period
+    void SetTimerPeriod(unsigned mSec);
     /// Return current frame timestep as seconds
     float GetTimeStep() const { return timeStep_; }
     /// Return frame number
     unsigned GetFrameNumber() const { return frameNumber_; }
+    /// Return current low-resolution timer period in milliseconds
+    unsigned GetTimerPeriod() const { return timerPeriod_; }
     /// Return elapsed time from program start as seconds
     float GetElapsedTime();
     /// Return current frames per second
@@ -58,16 +62,21 @@ public:
     /// Get system time as milliseconds
     static unsigned GetSystemTime();
     /// Get system time as seconds since 1970.1.1
+    static unsigned GetTimeSinceEpoch();
     /// Get a date/time stamp as a string
     static String GetTimeStamp();
     /// Sleep for a number of milliseconds
     static void Sleep(unsigned mSec);
 
 private:
+    /// Elapsed time since program start
+    Timer elapsedTime_;
     /// Frame number
     unsigned frameNumber_;
     /// Timestep in seconds
     float timeStep_;
+    /// Low-resolution timer period
+    unsigned timerPeriod_;
 };
 
 }

@@ -27,10 +27,27 @@ static unsigned Tick()
 #endif
 }
 
-Time::Time(Context *context)
-    : Object(context)
-{
+Timer::Timer() { Reset(); }
 
+unsigned Timer::GetMSec(bool reset)
+{
+    unsigned currentTime = Tick();
+    unsigned elapsedTime = currentTime - startTime_;
+
+    if (reset)
+        startTime_ = currentTime;
+
+    return elapsedTime;
+}
+
+void Timer::Reset()
+{
+    startTime_ = Tick();
+}
+
+Time::Time(Context *context)
+    : Base(context)
+{
 }
 
 Time::~Time() noexcept = default;
@@ -38,6 +55,11 @@ Time::~Time() noexcept = default;
 unsigned Time::GetSystemTime()
 {
     return Tick();
+}
+
+unsigned Time::GetTimeSinceEpoch()
+{
+    return (unsigned) time(nullptr);
 }
 
 String Time::GetTimeStamp()
@@ -80,4 +102,29 @@ void Time::EndFrame()
 {
     SendEvent(E_ENDFRAME);
 }
+
+void Time::SetTimerPeriod(unsigned int mSec)
+{
+#ifdef PLATFORM_MSVC
+    if (timerPeriod_ > 0)
+        timeEndPeriod(timerPeriod_);
+
+    timerPeriod_ = mSec;
+
+    if (timerPeriod_ > 0)
+        timeBeginPeriod(timerPeriod_);
+#endif
+}
+
+float Time::GetFramesPerSecond() const
+{
+    return 1.0f / timeStep_;
+}
+
+float Time::GetElapsedTime()
+{
+    return elapsedTime_.GetMSec(false) / 1000.0f;
+}
+
+
 }
