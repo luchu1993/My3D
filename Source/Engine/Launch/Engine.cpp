@@ -158,44 +158,44 @@ void Engine::DoExit()
     exiting_ = true;
 }
 
-    VariantMap Engine::ParseParameters(const Vector<String> &arguments)
+VariantMap Engine::ParseParameters(const Vector<String> &arguments)
+{
+    VariantMap ret;
+
+    for (unsigned i = 0; i < arguments.Size(); ++i)
     {
-        VariantMap ret;
-
-        for (unsigned i = 0; i < arguments.Size(); ++i)
+        if (arguments[i].Length() > 1 && arguments[i][0] == '-')
         {
-            if (arguments[i].Length() > 1 && arguments[i][0] == '-')
-            {
-                String argument = arguments[i].Substring(1).ToLower();
-                String value = i + 1 < arguments.Size() ? arguments[i + 1] : String::EMPTY;
+            String argument = arguments[i].Substring(1).ToLower();
+            String value = i + 1 < arguments.Size() ? arguments[i + 1] : String::EMPTY;
 
-                if (argument == "log" && !value.Empty())
+            if (argument == "log" && !value.Empty())
+            {
+                unsigned logLevel = GetStringListIndex(value.CString(), logLevelPrefixes, M_MAX_UNSIGNED);
+                if (logLevel != M_MAX_UNSIGNED)
                 {
-                    unsigned logLevel = GetStringListIndex(value.CString(), logLevelPrefixes, M_MAX_UNSIGNED);
-                    if (logLevel != M_MAX_UNSIGNED)
-                    {
-                        ret[EP_LOG_LEVEL] = logLevel;
-                        ++i;
-                    }
+                    ret[EP_LOG_LEVEL] = logLevel;
+                    ++i;
                 }
             }
         }
-
-        return ret;
     }
 
-    bool Engine::HasParameter(const VariantMap &parameters, const String &parameter)
-    {
-        StringHash nameHash(parameter);
-        return parameters.Find(nameHash) != parameters.End();
-    }
+    return ret;
+}
 
-    const Variant &
-    Engine::GetParameter(const VariantMap &parameters, const String &parameter, const Variant &defaultValue)
-    {
-        StringHash nameHash(parameter);
-        auto it = parameters.Find(nameHash);
-        return it != parameters.End() ? it->second_ : defaultValue;
-    }
+bool Engine::HasParameter(const VariantMap &parameters, const String &parameter)
+{
+    StringHash nameHash(parameter);
+    return parameters.Find(nameHash) != parameters.End();
+}
+
+const Variant &
+Engine::GetParameter(const VariantMap &parameters, const String &parameter, const Variant &defaultValue)
+{
+    StringHash nameHash(parameter);
+    auto it = parameters.Find(nameHash);
+    return it != parameters.End() ? it->second_ : defaultValue;
+}
 
 }
