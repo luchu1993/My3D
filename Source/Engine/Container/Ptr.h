@@ -265,7 +265,8 @@ public:
         return *this;
     }
     /// Convert to a raw pointer, null if the object is expired.
-    operator T*() const { return Get(); }   // NOLINT(google-explicit-constructor)
+    operator T*() const { return Get(); }
+    /// Convert to a shared pointer
     SharedPtr<T> Lock() const
     {
         if (Expired())
@@ -273,30 +274,89 @@ public:
         else
             return SharedPtr<T>(ptr_);
     }
-
+    /// Return raw pointer. If expired, return null
     T* Get() const
     {
         return Expired() ? nullptr : ptr_;
     }
-
+    /// Return raw pointer, If expired, return null
+    T* operator ->() const
+    {
+        T* rawPtr = Get();
+        assert(rawPtr);
+        return rawPtr;
+    }
+    /// Deference the object
+    T& operator *() const
+    {
+        T* rawPtr = Get();
+        assert(rawPtr);
+        return *rawPtr;
+    }
+    /// Subscript the object if applicable
+    T& operator[](int index)
+    {
+        T* rawPtr = Get();
+        assert(rawPtr);
+        return rawPtr[index];
+    }
+    /// Swap with another WeakPtr
     void Swap(WeakPtr<T>& rhs)
     {
         My3D::Swap(ptr_, rhs.ptr_);
         My3D::Swap(refCount_, rhs.refCount_);
     }
-
+    /// Reset with another pointer
     void Reset(T* ptr = nullptr)
     {
         WeakPtr<T> copy(ptr);
         Swap(copy);
     }
+    /// Perform a static cast from a weak pointer of another type
+    template<typename U> void StaticCast(const WeakPtr<U>& rhs)
+    {
+        ReleaseRef();
+        ptr_ = static_cast<T*>(rhs.Get());
+        refCount_ = rhs.refCount_;
+        AddRef();
+    }
+    /// Perform a dynamic cast from a weak pointer of another type
+    template<typename U> void DynamicCast(const WeakPtr<U>& rhs)
+    {
+        ReleaseRef();
+        ptr_ = dynamic_cast<T*>(rhs.Get());
+        if (ptr_)
+        {
+            refCount_ = rhs.refCount_;
+            AddRef();
+        }
+        else
+            refCount_ = nullptr;
+    }
+    /// Check if the pointer is null
+    bool Null() const { return refCount_ == nullptr; }
+    /// Check if the pointer it not null
+    bool NotNull() const { return refCount_ != nullptr; }
+    /// Return the object's reference count, or 0 if null pointer or if object has expired.
+    bool Refs() const { return (refCount_ && refCount_->refs_ >= 0) ? refCount_->refs_ : 0; }
+    /// Return the object's weak reference count
+    int WeakRefs() const
+    {
+        if (!Expired())
+            return ptr_->WeakRefs();
+        else
+            return refCount_ ? refCount_->weakRefs_ : 0;
+    }
     /// Return whether the object has expired. If null pointer, always return true.
     bool Expired() const { return refCount_ ? refCount_->refs_ < 0 : true; }
+    /// Return pointer to the refcount
+    RefCount* RefCountPtr() const { return refCount_; }
     /// Return hash value for HashSet & HashMap
     unsigned ToHash() const { return (unsigned)((size_t)ptr_ / sizeof (T)); }
 
 private:
     template<typename U> friend class WeakPtr;
+    /// Add a weak reference to the object pointed to.
     void AddRef()
     {
         if (refCount_)
@@ -305,7 +365,7 @@ private:
             ++(refCount_->weakRefs_);
         }
     }
-
+    /// Release weak reference. Delete the refcount structure if necessary
     void ReleaseRef()
     {
         if (refCount_)
@@ -326,10 +386,114 @@ private:
     RefCount* refCount_;
 };
 
-template <typename T>
-class MY3D_API UniquePtr
+/// Perform a static cast form one weak pointer type to another
+template <typename T, typename U> WeakPtr<T> StaticCast(const WeakPtr<U>& ptr)
 {
+    WeakPtr<T> ret;
+    ret.StaticCast(ptr);
+    return ret;
+}
 
+/// Perform a dynamic cast from one weak pointer type to another
+template <typename T, typename U> WeakPtr<T> DynamicCast(const WeakPtr<U>& ptr)
+{
+    WeakPtr<T> ret;
+    ret.DynamicCast(ptr);
+    return ret;
+}
+
+/// Delete object of type T. T must be complete.
+template<typename T> inline void CheckedDelete(T* x)
+{
+    using typeMustBeComplete = char[sizeof(T) ? 1 : -1];
+    (void) sizeof(typeMustBeComplete);
+    delete x;
+}
+
+/// Unique pointer template class
+template <typename T> class MY3D_API UniquePtr
+{
+public:
+    /// Construct empty
+    UniquePtr() = default;
+    /// Construct from pointer
+    explicit UniquePtr(T* ptr) : ptr_(ptr) { }
+    /// Prevent copy construction
+    UniquePtr(const UniquePtr& rhs) = delete;
+    /// Construct empty
+    UniquePtr(std::nullptr_t) { }
+    /// Move-construct from UniquePtr
+    UniquePtr(UniquePtr&& rhs) noexcept
+        : ptr_(rhs.Detach())
+    {
+    }
+    /// Prevent assigment
+    UniquePtr& operator =(const UniquePtr& rhs) = delete;
+    /// Assign from pointer
+    UniquePtr& operator =(T* ptr)
+    {
+        Reset(ptr);
+        return *this;
+    }
+    /// Test for less than with another unique pointer.
+    template <class U>
+    bool operator <(const UniquePtr<U>& rhs) const { return ptr_ < rhs.ptr_; }
+    /// Test for equality with another unique pointer.
+    template <class U>
+    bool operator ==(const UniquePtr<U>& rhs) const { return ptr_ == rhs.ptr_; }
+    /// Test for inequality with another unique pointer.
+    template <class U>
+    bool operator !=(const UniquePtr<U>& rhs) const { return ptr_ != rhs.ptr_; }
+    /// Cast pointer to bool
+    operator bool() const { return !!ptr_; }
+    /// Swap with another UniquePtr
+    void Swap(UniquePtr& other) { My3D::Swap(ptr_, other.ptr_); }
+    /// Detach pointer form UniquePtr without destroying
+    T* Detach()
+    {
+        T* ptr = ptr_;
+        ptr_ = nullptr;
+        return ptr;
+    }
+    /// Return the raw pointer
+    T* Get() const { return ptr_; }
+    /// Reset
+    void Reset(T* ptr = nullptr)
+    {
+        CheckedDelete(ptr_);
+        ptr_ = ptr;
+    }
+    /// Return hash value for HashSet & HashMap
+    unsigned ToHash() const { return (unsigned)((size_t) ptr_ / sizeof(T)); }
+    /// Check if the pointer is null
+    bool Null() const { return ptr_ == nullptr; }
+    /// Check if the pointer is not null
+    bool NotNull() const { return ptr_ != nullptr; }
+    /// Destruct
+    ~UniquePtr() { Reset(); }
+
+private:
+    template<typename> friend class UniquePtr;
+    /// Pointer to the object
+    T* ptr_{};
 };
+
+/// Swap two unique pointers
+template<typename T> void Swap(UniquePtr<T>& first, UniquePtr<T>& second)
+{
+    first.Swap(second);
+}
+/// Construct UniquePtr
+template <typename T, typename... Args>
+UniquePtr<T> MakeUnique(Args&& ... args)
+{
+    return UniquePtr<T>(new T(std::forward<Args>(args)...));
+}
+/// Construct SharedPtr
+template <typename T, typename ... Args>
+SharedPtr<T> MakeShared(Args&& ... args)
+{
+    return SharedPtr<T>(new T(std::forward<Args>(args)...));
+}
 
 }
