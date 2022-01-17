@@ -1,5 +1,7 @@
 
-file (GLOB_RECURSE SAMPLE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+set(TARGET_NAME HelloWorld)
 
-add_executable(HelloWorld ${SAMPLE_SRCS})
-target_link_libraries(HelloWorld Engine)
+set(LIBS Engine)
+define_source_files()
+
+setup_main_executable()

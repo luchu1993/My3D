@@ -1,16 +1,14 @@
-
-# platform predefine macros
-function (define_platform_config)
-    if (MSVC)
-        add_definitions(-DPLATFORM_MSVC)
-    elseif (MINGW)
-        add_definitions(-DPLATFORM_MINGW)
-    elseif(UNIX)
-        add_definitions(-DPLATFORM_UNIX)
-    endif()
-endfunction()
-
 define_platform_config()
+
+# Check existence of various header files and their functions required by some of the third-party libraries and Urho3D library
+# Set the CMake variables in this scope but only add the compiler defines in the respective library's scope
+
+
+# Add targets
+foreach (TARGET SDL2)
+    add_subdirectory (ThirdParty/${TARGET})
+endforeach ()
 
 add_subdirectory(Engine)
 add_subdirectory(Samples)
+

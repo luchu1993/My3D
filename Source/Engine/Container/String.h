@@ -19,6 +19,7 @@ namespace My3D
 static const int CONVERSION_BUFFER_LENGTH = 128;
 static const int MATRIX_CONVERSION_BUFFER_LENGTH = 256;
 
+class WString;
 class StringHash;
 class String;
 
@@ -66,6 +67,8 @@ public:
     {
 
     }
+    /// Construct form a wide character string
+    explicit String(const WString& str);
     /// Construct from an integer
     explicit String(int value);
     /// Construct from a short integer
@@ -214,6 +217,20 @@ public:
         assert(index < length_);
         return buffer_[index];
     }
+    /// Replace all occurrences of a character
+    void Replace(char replaceThis, char replaceWith, bool caseSensitive = true);
+    /// Replace all occurrences of s string
+    void Replace(const String& replaceThis, const String& replaceWith, bool caseSensitive = true);
+    /// Replace a substring
+    void Replace(unsigned pos, unsigned length, const String& replaceWith);
+    /// Replace a substring with a C string
+    void Replace(unsigned pos, unsigned length, const char* replaceWith);
+    /// Replace a substring by iterators
+    Iterator Replace(const Iterator& start, const Iterator& end, const String& replaceWith);
+    /// Return a string with all occurrences of a character replaced.
+    String Replaced(char replaceThis, char replaceWith, bool caseSensitive = true) const;
+    /// Return a string with all occurrences of a string replaced.
+    String Replaced(const String& replaceThis, const String& replaceWith, bool caseSensitive = true) const;
     /// Append a string
     String& Append(const String& str);
     /// Append a C string
@@ -234,6 +251,12 @@ public:
     int Compare(const String& str, bool caseSensitive = true) const;
     /// Return comparison result with a C string.
     int Compare(const char* str, bool caseSensitive = true) const;
+    /// Construct UTF8
+    /// content from Latin1
+    void SetUTF8FromLatin1(const char* str);
+    /// Construct UTF8
+    /// content form wide characters
+    void SetUTF8FromWChar(const wchar_t* str);
     /// Swap with another string
     void Swap(String& str);
     /// Set new capacity.
@@ -306,6 +329,8 @@ private:
         if (count)
             memcpy(dest, src, count);
     }
+    /// Replace a substring with another substring
+    void Replace(unsigned pos, unsigned length, const char* srcStart, unsigned srcLength);
     /// String length.
     unsigned length_;
     /// Capacity, zero if buffer not allocated.

@@ -15,6 +15,8 @@ static const float M_PI = 3.14159265358979323846264338327950288f;
 static const float M_HALF_PI = M_PI * 0.5f;
 static const int M_MIN_INT = 0x80000000;
 static const int M_MAX_INT = 0x7fffffff;
+static const short M_MIN_SHORT = 0x8000;
+static const short M_MAX_SHORT = 0x7fff;
 static const unsigned M_MIN_UNSIGNED = 0x00000000;
 static const unsigned M_MAX_UNSIGNED = 0xffffffff;
 
@@ -105,6 +107,10 @@ template <class T> inline T Pow(T x, T y) { return pow(x, y); }
 template <class T> inline T Ln(T x) { return log(x); }
 /// Return square root of X.
 template <class T> inline T Sqrt(T x) { return sqrt(x); }
+
+/// Round value to nearest integer
+template <class T> inline T Round(T x) { return round(x); }
+
 /// Return a representation of the specified floating-point value as a single format bit layout.
 inline unsigned FloatToRawIntBits(float value)
 {

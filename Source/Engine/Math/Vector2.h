@@ -52,6 +52,9 @@ public:
     bool operator ==(const IntVector2& rhs) const { return x_ == rhs.x_ && y_ == rhs.y_; }
     /// Test for inequality with another vector.
     bool operator !=(const IntVector2& rhs) const { return x_ != rhs.x_ || y_ != rhs.y_; }
+    /// Return integer data
+    const int* Data() const { return &x_; }
+
     /// X coordinate
     int x_;
     /// Y coordinate

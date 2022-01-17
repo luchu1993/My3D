@@ -108,6 +108,14 @@ void String::Resize(unsigned int newLength)
     length_ = newLength;
 }
 
+String::String(const WString& str)
+    : length_(0)
+    , capacity_(0)
+    , buffer_(&endZero)
+{
+
+}
+
 String::String(int value)
     : length_(0)
     , capacity_(0)
@@ -441,6 +449,95 @@ String String::Substring(unsigned int pos, unsigned int length) const
     }
     else
         return String();
+}
+
+void String::Replace(char replaceThis, char replaceWith, bool caseSensitive)
+{
+    if (caseSensitive)
+    {
+        for (int i = 0; i < length_; ++i)
+        {
+            if (buffer_[i] == replaceThis)
+                buffer_[i] = replaceWith;
+        }
+    }
+    else 
+    {
+        replaceThis = (char) tolower(replaceThis);
+        for (unsigned i = 0; i < length_; ++i)
+        {
+            if (tolower(buffer_[i]) == replaceThis)
+                buffer_[i] = replaceWith;
+        }
+    }
+}
+
+void String::Replace(const String& replaceThis, const String& replaceWith, bool caseSensitive)
+{
+
+}
+
+void String::Replace(unsigned pos, unsigned length, const String& replaceWith)
+{
+
+}
+
+void String::Replace(unsigned pos, unsigned length, const char* replaceWith)
+{
+    if (pos + length >= length_)
+        return;
+    
+    Replace(pos, length, replaceWith, CStringLength(replaceWith));
+}
+
+String::Iterator String::Replace(const Iterator& start, const Iterator& end, const String& replaceWith)
+{
+    unsigned pos = (unsigned)(start - Begin());
+    if (pos >= length_)
+        return End();
+
+    auto length = (unsigned)(end - start);
+    Replace(pos, length, replaceWith);
+
+    return Begin() + pos;
+}
+
+void String::Replace(unsigned pos, unsigned length, const char* srcStart, unsigned srcLength)
+{
+    unsigned delta = srcLength - length;
+    if (pos + length < length_)
+    {
+        if (delta < 0)
+        {
+            MoveRange(pos + srcLength, pos + length, length_ - pos - length);
+            Resize(length_ + delta);
+        }
+        if (delta > 0)
+        {
+            Resize(length_ + delta);
+            MoveRange(pos + srcLength, pos + length, length_ - pos - length_ - delta);
+        }
+    }
+    else 
+        Resize(length + delta);
+
+    CopyChars(buffer_ + pos, srcStart, srcLength);
+}
+
+void String::SetUTF8FromLatin1(const char* str)
+{
+    char temp[7];
+    Clear();
+
+    if (!str) return;
+}
+
+void String::SetUTF8FromWChar(const wchar_t* str)
+{
+    char temp[7];
+    Clear();
+
+    if (!str) return;
 }
 
 WString::WString()

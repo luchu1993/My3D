@@ -768,7 +768,24 @@ public:
     /// Erase a range of elements by swapping elements from the end of the array.
     void EraseSwap(unsigned pos, unsigned length = 1)
     {
+        unsigned shiftStartIndex = pos + length;
+        // Return if the rane is illegal
+        if (shiftStartIndex > size_ || !length)
+            return;
 
+        unsigned newSize = size_ - length;
+        unsigned trailingCount = size_ - shiftStartIndex;
+        if (trailingCount <= length)
+        {
+            // We're removing more elements from the array than exist past the end of the range being removed, so perform a normal shift and destroy.
+            MoveRange(pos, shiftStartIndex, trailingCount);
+        }
+        else
+        {
+            // Swap elements from the end of the array into the empty space
+            CopyElements(Buffer() + pos, Buffer() + newSize, length);
+        }
+        Resize(newSize);
     }
     /// Erase an element by value. Return ture if was found and erased.
     bool Remove(const T& value)
@@ -782,6 +799,18 @@ public:
         else
             return false;
     }
+    /// Erase an element by value by swapping with the last element. Return true if was found and erased.
+    bool RemoveSwap(const T& value)
+    {
+        Iterator it = Find(value);
+        if (it != End())
+        {
+            EraseSwap(i - Begin());
+            return true;
+        }
+        else 
+            return false;
+    }
     /// Clear the vector
     void Clear() { Resize(0); }
     /// Resize the vector
@@ -793,11 +822,11 @@ public:
                 capacity_ = newSize;
             else
             {
-                while (capacity_ < size_)
+                while (capacity_ < newSize)
                     capacity_ += (capacity_ + 1) >> 1;
             }
                 
-            unsigned char* newBuffer =AllocateBuffer((unsigned) (capacity_ * sizeof(T)));
+            unsigned char* newBuffer = AllocateBuffer((unsigned) (capacity_ * sizeof(T)));
             // Move the data into the new buffer and delete the old
             if (buffer_)
             {

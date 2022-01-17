@@ -13,6 +13,7 @@ namespace My3D
 /// Three-dimensional axis-aligned bounding box.
 class MY3D_API BoundingBox
 {
+public:
     /// Construct with zero size.
     BoundingBox() noexcept
         : min_(M_INFINITY, M_INFINITY, M_INFINITY)
