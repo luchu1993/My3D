@@ -72,6 +72,8 @@ namespace My3D
         /// Destruct
         ~Graphics() override;
 
+        /// Set external window handle.
+        void SetExternalWindow(void* window);
         /// Set window title
         void SetWindowTitle(const String& windowTitle);
         /// Set window position
@@ -82,6 +84,8 @@ namespace My3D
         bool SetScreenMode(int width, int height, const ScreenModeParams& params, bool maximize = false);
         /// Set screen mode
         bool SetScreenMode(int width, int height);
+        /// Set whether to flush the GPU command buffer to prevent multiple frames being queued and uneven frame timesteps. Default off, may decrease performance if enabled. Not currently implemented on OpenGL.
+        void SetFlushGPU(bool enable);
         /// Toggle between full screen and windowed mode.
         bool ToggleFullscreen();
         /// Close the window
@@ -134,14 +138,30 @@ namespace My3D
         int GetMonitor() const { return screenParams_.monitor_; }
         /// Return whether teh main window using sRGB conversion on write
         bool GetSRGB() const { return sRGB_; }
-        // Return allowed screen orientations
+        /// Return allowed screen orientations
         const String& GetOrientations() const { return orientations_; }
+        /// Return supported fullscreen resolutions (third component is refreshRate). Will be empty if listing the resolutions is not supported on the platform (e.g. Web).
+        PODVector<IntVector3> GetResolutions(int monitor) const;
+        /// Return index of the best resolution for requested width, height and refresh rate.
+        unsigned FindBestResolutionIndex(int monitor, int width, int height, int refreshRate) const;
+        /// Return supported multisampling levels.
+        PODVector<int> GetMultiSampleLevels() const;
 
     private:
         /// Create the application window.
         bool OpenWindow(int width, int height, bool resizable, bool borderless);
+        /// Adjust parameters according to the platform.
+        void AdjustScreenMode(int& newWidth, int& newHeight, ScreenModeParams& params, bool& maximize) const;
         /// Called when scree mode is successfully changed by the backend
         void OnScreenModeChanged();
+        /// Adjust the window for new resolution and fullscreen mode
+        void AdjustWindow(int& newWidth, int& newHeight, bool& newFullscreen, bool& newBorderless, int& monitor);
+        /// Create Direct3D11 device and swap chain.
+        bool CreateDevice(int width, int height);
+        /// Update Direct3D11 swap chain state for a new mode and create views for the back-buffer and default depth buffer.
+        bool UpdateSwapChain(int width, int height);
+        /// Check supported rendering features.
+        void CheckFeatureSupport();
         /// Implementation
         GraphicsImpl* impl_;
         /// SDL window
@@ -162,6 +182,8 @@ namespace My3D
         IntVector2 position_;
         /// Screen mode parameters
         ScreenModeParams screenParams_;
+        /// Flush GPU command buffer flag.
+        bool flushGPU_{};
         /// sRGB conversion on write flag for teh main window
         bool sRGB_{};
         /// Allowed screen orientations.

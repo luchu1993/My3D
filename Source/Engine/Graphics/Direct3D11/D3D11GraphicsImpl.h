@@ -10,6 +10,9 @@
 
 namespace My3D
 {
+#define MY3D_SAFE_RELEASE(p) if (p) { ((IUnknown*)p)->Release(); p = nullptr; }
+#define MY3D_LOGD3DERROR(msg, hr) MY3D_LOGERRORF("%s (HRESULT %x)", msg, (unsigned) hr)
+
     class MY3D_API GraphicsImpl
     {
         friend class Graphics;
@@ -23,6 +26,10 @@ namespace My3D
         ID3D11DeviceContext* GetDeviceContext() const { return deviceContext_; }
         /// Return swap chain
         IDXGISwapChain* GetSwapChain() const { return swapChain_; }
+        /// Return whether multisampling is supported for a given texture format and sample count.
+        bool CheckMultiSampleSupport(DXGI_FORMAT format, unsigned sampleCount) const;
+        /// Return multisample quality level for a given texture format and sample count. The sample count must be supported. On D3D feature level 10.1+, uses the standard level. Below that uses the best quality.
+        unsigned GetMultiSampleQuality(DXGI_FORMAT format, unsigned sampleCount) const;
 
     private:
         /// Graphics device

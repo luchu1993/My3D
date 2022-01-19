@@ -118,6 +118,19 @@ inline unsigned FloatToRawIntBits(float value)
     return u;
 }
 
+/// Round up to next power of two.
+inline unsigned NextPowerOfTwo(unsigned value)
+{
+    // http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+    --value;
+    value |= value >> 1u;
+    value |= value >> 2u;
+    value |= value >> 4u;
+    value |= value >> 8u;
+    value |= value >> 16u;
+    return ++value;
+}
+
 inline constexpr unsigned SDBMHash(unsigned hash, unsigned char c) { return c + (hash << 6u) + (hash << 16u) - hash; }
 
 }
