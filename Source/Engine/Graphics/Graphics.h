@@ -4,13 +4,18 @@
 
 #pragma once
 
+#include "Graphics/GraphicsDefs.h"
 #include "Core/Object.h"
+#include "Core/Mutex.h"
+
 
 struct SDL_Window;
 
 namespace My3D
 {
     class GraphicsImpl;
+    class RenderSurface;
+    class GPUObject;
 
     /// Screen mode parameters
     struct ScreenModeParams
@@ -94,12 +99,24 @@ namespace My3D
         bool BeginFrame();
         /// End frame rendering and swap buffers.
         void EndFrame();
+        /// Clear any or all of render target, depth buffer and stencil buffer
+        void Clear(ClearTargetFlags flags, const Color& color = Color::TRANSPARENT_BLACK, float depth = 1.0f, unsigned stencil = 0);
+        /// Return current rendertarget width and height.
+        IntVector2 GetRenderTargetDimensions() const;
+        /// Reset all rendertargets, depth-stencil surface and viewport.
+        void ResetRenderTargets();
+        /// Reset specific rendertarget.
+        void ResetRenderTarget(unsigned index);
         /// Maximize the window.
         void Maximize();
         /// Minimize the window.
         void Minimize();
         /// Raises window if it was minimized.
         void Raise() const;
+        /// Add a GPU object to keep track of. Called by GPUObject.
+        void AddGPUObject(GPUObject* object);
+        /// Remove a GPU object. Called by GPUObject.
+        void RemoveGPUObject(GPUObject* object);
         /// Return whether rendering initialized
         bool IsInitialized() const;
         /// Return graphics implementation, which holds the actual API-specific resources
@@ -162,6 +179,9 @@ namespace My3D
         bool UpdateSwapChain(int width, int height);
         /// Check supported rendering features.
         void CheckFeatureSupport();
+
+        /// Mutex for accessing the GPU objects vector from several threads.
+        Mutex gpuObjectMutex_;
         /// Implementation
         GraphicsImpl* impl_;
         /// SDL window
@@ -190,6 +210,12 @@ namespace My3D
         String orientations_;
         /// Graphics API name
         String apiName_;
+        /// Rendertargets in use.
+        RenderSurface* renderTargets_[MAX_RENDERTARGETS]{};
+        /// Depth-stencil surface in use.
+        RenderSurface* depthStencil_{};
+        /// GPU objects.
+        PODVector<GPUObject*> gpuObjects_;
     };
 
     /// Register Graphics library objects

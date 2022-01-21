@@ -7,7 +7,7 @@
 #include "Graphics/GraphicsEvents.h"
 #include "Core/Context.h"
 #include "IO/Log.h"
-
+#include "Core/Mutex.h"
 
 namespace My3D
 {
@@ -123,6 +123,18 @@ void Graphics::Raise() const
     SDL_RaiseWindow(window_);
 }
 
+void Graphics::AddGPUObject(GPUObject *object)
+{
+    MutexLock lock(gpuObjectMutex_);
+    gpuObjects_.Push(object);
+}
+
+void Graphics::RemoveGPUObject(GPUObject *object)
+{
+    MutexLock lock(gpuObjectMutex_);
+    gpuObjects_.Remove(object);
+}
+
 void Graphics::OnScreenModeChanged()
 {
 #ifdef MY3D_LOGGING
@@ -130,11 +142,11 @@ void Graphics::OnScreenModeChanged()
     msg.AppendWithFormat("Set screen mode %dx%d rate %d Hz %s monitor %d", width_, height_, screenParams_.refreshRate_,
     (screenParams_.fullscreen_ ? "fullscreen" : "windowed"), screenParams_.monitor_);
     if (screenParams_.borderless_)
-    msg.Append(" borderless");
+        msg.Append(" borderless");
     if (screenParams_.resizable_)
-    msg.Append(" resizable");
+        msg.Append(" resizable");
     if (screenParams_.multiSample_ > 1)
-    msg.AppendWithFormat(" multisample %d", screenParams_.multiSample_);
+        msg.AppendWithFormat(" multisample %d", screenParams_.multiSample_);
     MY3D_LOGINFO(msg);
 #endif
 

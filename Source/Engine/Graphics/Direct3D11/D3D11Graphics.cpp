@@ -12,6 +12,16 @@
 
 namespace My3D
 {
+    static HWND GetWindowHandle(SDL_Window* window)
+    {
+        SDL_SysWMinfo sysInfo;
+
+        SDL_VERSION(&sysInfo.version);
+        SDL_GetWindowWMInfo(window, &sysInfo);
+
+        return sysInfo.info.win.window;
+    }
+
     Graphics::Graphics(Context *context)
         : Base(context)
         , impl_(new GraphicsImpl())
@@ -38,6 +48,18 @@ namespace My3D
         impl_ = nullptr;
 
         context_->ReleaseSDL();
+    }
+
+    IntVector2 Graphics::GetRenderTargetDimensions() const
+    {
+        int width, height;
+
+        return IntVector2(width, height);
+    }
+
+    void Graphics::Clear(ClearTargetFlags flags, const Color &color, float depth, unsigned int stencil)
+    {
+        IntVector2 rtSize = GetRenderTargetDimensions();
     }
 
     void Graphics::Close()
@@ -83,7 +105,7 @@ namespace My3D
         screenParams_ = newParams;
 
         if (!impl_->device_ || screenParams_.multiSample_ != oldMultiSample)
-            CreateDevice();
+            CreateDevice(width, height);
         UpdateSwapChain(width, height);
 
         // Clear the initial window contents to black
@@ -152,7 +174,203 @@ namespace My3D
             SetFlushGPU(flushGPU_);
         }
 
-        PODVector<int> multiSampleLevels = GetMultiSampleLevls();
+        // Check that multi-sample level is supported
+        PODVector<int> multiSampleLevels = GetMultiSampleLevels();
+        if (!multiSampleLevels.Contains(screenParams_.multiSample_))
+            screenParams_.multiSample_ = 1;
+
+        // Create swap chain. Release old if necessary
+        if (impl_->swapChain_)
+        {
+            impl_->swapChain_->Release();
+            impl_->swapChain_ = nullptr;
+        }
+
+        IDXGIDevice* dxgiDevice = nullptr;
+        impl_->device_->QueryInterface(IID_IDXGIDevice, (void**)&dxgiDevice);
+        IDXGIAdapter* dxgiAdapter = nullptr;
+        dxgiDevice->GetParent(IID_IDXGIAdapter, (void**)&dxgiAdapter);
+        IDXGIFactory* dxgiFactory = nullptr;
+        dxgiAdapter->GetParent(IID_IDXGIFactory, (void**)&dxgiFactory);
+
+        DXGI_RATIONAL refreshRateRational = {};
+        IDXGIOutput* dxgiOutput = nullptr;
+        UINT numModes = 0;
+        dxgiAdapter->EnumOutputs(screenParams_.monitor_, &dxgiOutput);
+        dxgiOutput->GetDisplayModeList(sRGB_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM, 0, &numModes, nullptr);
+
+        // Find the best matching refresh rate with the specified resolution
+        if (numModes > 0)
+        {
+            DXGI_MODE_DESC* modes = new DXGI_MODE_DESC[numModes];
+            dxgiOutput->GetDisplayModeList(sRGB_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM, 0, &numModes, modes);
+            unsigned bestMatchingRateIndex = -1;
+            unsigned bestError = M_MAX_UNSIGNED;
+            for (unsigned i = 0; i < numModes; ++i)
+            {
+                if (width != modes[i].Width || height != modes[i].Height)
+                    continue;
+
+                float rate = (float) modes[i].RefreshRate.Numerator / modes[i].RefreshRate.Denominator;
+                unsigned error = (unsigned)(Abs(rate - screenParams_.refreshRate_));
+                if (error < bestError)
+                {
+                    bestMatchingRateIndex = i;
+                    bestError = error;
+                }
+            }
+
+            if (bestMatchingRateIndex != -1)
+            {
+                refreshRateRational.Numerator = modes[bestMatchingRateIndex].RefreshRate.Numerator;
+                refreshRateRational.Denominator = modes[bestMatchingRateIndex].RefreshRate.Denominator;
+            }
+            delete[] modes;
+        }
+
+        dxgiOutput->Release();
+
+        DXGI_SWAP_CHAIN_DESC swapChainDesc;
+        memset(&swapChainDesc, 0, sizeof(swapChainDesc));
+        swapChainDesc.BufferCount = 1;
+        swapChainDesc.BufferDesc.Width = (UINT) width;
+        swapChainDesc.BufferDesc.Height = (UINT) height;
+        swapChainDesc.BufferDesc.Format = sRGB_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
+        swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swapChainDesc.BufferDesc.RefreshRate.Numerator = refreshRateRational.Numerator;
+        swapChainDesc.BufferDesc.RefreshRate.Denominator = refreshRateRational.Denominator;
+        swapChainDesc.OutputWindow = GetWindowHandle(window_);
+        swapChainDesc.SampleDesc.Count = static_cast<UINT>(screenParams_.multiSample_);
+        swapChainDesc.SampleDesc.Quality = impl_->GetMultiSampleQuality(swapChainDesc.BufferDesc.Format, screenParams_.multiSample_);
+        swapChainDesc.Windowed = TRUE;
+        swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+        HRESULT hr = dxgiFactory->CreateSwapChain(impl_->device_, &swapChainDesc, &impl_->swapChain_);
+        // After creating the swap chain, disable automatic Alt-Enter fullscreen/windowed switching
+        // (the application will switch manually if it wants to)
+        dxgiFactory->MakeWindowAssociation(GetWindowHandle(window_), DXGI_MWA_NO_ALT_ENTER);
+
+#if MY3D_LOGGING
+        DXGI_ADAPTER_DESC desc;
+        dxgiAdapter->GetDesc(&desc);
+        String adapterDesc(desc.Description);
+        MY3D_LOGINFO("Adapter used " + adapterDesc);
+#endif
+
+        dxgiFactory->Release();
+        dxgiAdapter->Release();
+        dxgiDevice->Release();
+
+        if (FAILED(hr))
+        {
+            MY3D_SAFE_RELEASE(impl_->swapChain_);
+            MY3D_LOGD3DERROR("Failed to created D3D11 swap chain", hr);
+            return false;
+        }
+
+        return true;
+    }
+
+    bool Graphics::UpdateSwapChain(int width, int height)
+    {
+        bool success = true;
+
+        ID3D11RenderTargetView* nullView = nullptr;
+        impl_->deviceContext_->OMSetRenderTargets(1, &nullView, nullptr);
+        if (impl_->defaultRenderTargetView_)
+        {
+            impl_->defaultRenderTargetView_->Release();
+            impl_->defaultRenderTargetView_ = nullptr;
+        }
+
+        if (impl_->defaultDepthStencilView_)
+        {
+            impl_->defaultDepthStencilView_->Release();
+            impl_->defaultDepthStencilView_ = nullptr;
+        }
+
+        if (impl_->defaultDepthTexture_)
+        {
+            impl_->defaultDepthTexture_->Release();
+            impl_->defaultDepthTexture_ = nullptr;
+        }
+
+        impl_->depthStencilView = nullptr;
+        for (unsigned i = 0; i < MAX_RENDERTARGETS; ++i)
+            impl_->renderTargetViews_[i] = nullptr;
+        impl_->renderTargetsDirty_ = true;
+
+        impl_->swapChain_->ResizeBuffers(1, (UINT) width, (UINT) height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+
+        // Create default render target view representing backbuffer
+        ID3D11Texture2D* backbufferTexture;
+        HRESULT hr = impl_->swapChain_->GetBuffer(0, IID_ID3D11Texture2D, (void**)&backbufferTexture);
+        if (FAILED(hr))
+        {
+            MY3D_SAFE_RELEASE(backbufferTexture);
+            MY3D_LOGD3DERROR("Failed to get backbuffer texture", hr);
+            success = false;
+        }
+        else
+        {
+            hr = impl_->device_->CreateRenderTargetView(backbufferTexture, nullptr, &impl_->defaultRenderTargetView_);
+            backbufferTexture->Release();
+            if (FAILED(hr))
+            {
+                MY3D_SAFE_RELEASE(impl_->defaultRenderTargetView_);
+                MY3D_LOGD3DERROR("Failed to create backbuffer render target view", hr);
+                success = false;
+            }
+        }
+
+        // Create default depth-stencil texture and view
+        D3D11_TEXTURE2D_DESC depthDesc;
+        memset(&depthDesc, 0, sizeof depthDesc);
+        depthDesc.Width = (UINT) width;
+        depthDesc.Height = (UINT) height;
+        depthDesc.MipLevels = 1;
+        depthDesc.ArraySize = 1;
+        depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        depthDesc.SampleDesc.Count = static_cast<UINT>(screenParams_.multiSample_);
+        depthDesc.SampleDesc.Quality = impl_->GetMultiSampleQuality(depthDesc.Format, screenParams_.multiSample_);
+        depthDesc.Usage = D3D11_USAGE_DEFAULT;
+        depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        depthDesc.CPUAccessFlags = 0;
+        depthDesc.MiscFlags = 0;
+        hr = impl_->device_->CreateTexture2D(&depthDesc, nullptr, &impl_->defaultDepthTexture_);
+        if (FAILED(hr))
+        {
+            MY3D_SAFE_RELEASE(impl_->defaultDepthTexture_);
+            MY3D_LOGD3DERROR("Failed to create backbuffer depth-stencil texture", hr);
+            success = false;
+        }
+        else
+        {
+            hr = impl_->device_->CreateDepthStencilView(impl_->defaultDepthTexture_, nullptr, &impl_->defaultDepthStencilView_);
+            if (FAILED(hr))
+            {
+                MY3D_SAFE_RELEASE(impl_->defaultDepthStencilView_);
+                MY3D_LOGD3DERROR("Failed to create backbuffer depth-stencil view", hr);
+                success = false;
+            }
+        }
+
+        // Update internally held backbuffer size
+        width_ = width;
+        height_ = height;
+
+        ResetRenderTargets();
+        return success;
+    }
+
+    void Graphics::ResetRenderTargets()
+    {
+
+    }
+
+    void Graphics::ResetRenderTarget(unsigned int index)
+    {
+
     }
 
     void Graphics::SetFlushGPU(bool enable)
@@ -179,9 +397,12 @@ namespace My3D
         {
             for (unsigned i = 2; i <= 16; ++i)
             {
-                if (impl_->CheckMultiSampleSupport())
+                if (impl_->CheckMultiSampleSupport(sRGB_ ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM, i))
+                    ret.Push(i);
             }
         }
+
+        return ret;
     }
 
     void Graphics::CheckFeatureSupport()
