@@ -706,4 +706,35 @@ namespace My3D
 
         return defaultIndex;
     }
+
+    String ToString(const char* formatString, ...)
+    {
+        String ret;
+        va_list args;
+                va_start(args, formatString);
+        ret.AppendWithFormatArgs(formatString, args);
+                va_end(args);
+        return ret;
+    }
+
+    bool IsAlpha(unsigned ch)
+    {
+        return ch < 256 && isalpha(ch) != 0;
+    }
+
+    bool IsDigit(unsigned ch)
+    {
+        return ch < 256 && isdigit(ch) != 0;
+    }
+
+    unsigned ToUpper(unsigned ch)
+    {
+        return (unsigned)toupper(ch);
+    }
+
+    unsigned ToLower(unsigned ch)
+    {
+        return (unsigned)tolower(ch);
+    }
+
 }

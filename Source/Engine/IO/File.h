@@ -43,7 +43,6 @@ class PackageFile;
         unsigned Seek(unsigned position) override;
         /// Write bytes to the file. Return number of bytes actually written.
         unsigned Write(const void* data, unsigned size) override;
-
         /// Return a checksum of the file contents using the SDBM hash algorithm.
         unsigned GetChecksum() override;
 

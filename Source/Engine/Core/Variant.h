@@ -85,10 +85,12 @@ namespace My3D
         Rect rect_;
         IntVector2 intVector2_;
         IntVector3 intVector3_;
+        IntRect intRect_;
         Matrix2* matrix2_;
         Matrix3* matrix3_;
         Matrix3x4* matrix3x4_;
         Matrix4* matrix4_;
+        Quaternion quaternion_;
         Color color_;
         String string_;
         StringVector stringVector_;
@@ -283,6 +285,14 @@ namespace My3D
             value_.vector4_ = rhs;
             return *this;
         }
+        /// Assign from a Quaternion.
+        Variant& operator =(const Quaternion& rhs)
+        {
+            SetType(VAR_QUATERNION);
+            value_.quaternion_ = rhs;
+            return *this;
+        }
+
         /// Assign from a color.
         Variant& operator =(const Color& rhs)
         {
@@ -341,11 +351,18 @@ namespace My3D
             return *this;
         }
 
-        /// Assign from a rect.
+        /// Assign from a Rect.
         Variant& operator =(const Rect& rhs)
         {
             SetType(VAR_RECT);
             value_.rect_ = rhs;
+            return *this;
+        }
+        /// Assign from a IntRect.
+        Variant& operator =(const IntRect& rhs)
+        {
+            SetType(VAR_INTRECT);
+            value_.intRect_ = rhs;
             return *this;
         }
         /// Assign from an IntVector2.
@@ -431,6 +448,11 @@ namespace My3D
         {
             return type_ == VAR_VECTOR4 && value_.vector4_ == rhs;
         }
+        /// Test for equality with a quaternion. To return true, both the type and value must match.
+        bool operator ==(const Quaternion& rhs) const
+        {
+            return type_ == VAR_QUATERNION && value_.quaternion_ == rhs;
+        }
         /// Test for equality with a color. To return true, both the type and value must match.
         bool operator ==(const Color& rhs) const
         {
@@ -470,6 +492,11 @@ namespace My3D
         bool operator ==(const Rect& rhs) const
         {
             return type_ == VAR_RECT && value_.rect_ == rhs;
+        }
+        /// Test for equality with an integer rect. To return true, both the type and value must match.
+        bool operator ==(const IntRect& rhs) const
+        {
+            return type_ == VAR_INTRECT && value_.intRect_ == rhs;
         }
         /// Test for equality with an IntVector2. To return true, both the type and value must match.
         bool operator ==(const IntVector2& rhs) const
@@ -534,6 +561,8 @@ namespace My3D
         bool operator !=(const Vector3& rhs) const { return !(*this == rhs); }
         /// Test for inequality with an Vector4.
         bool operator !=(const Vector4& rhs) const { return !(*this == rhs); }
+        /// Test for inequality with a Quaternion.
+        bool operator !=(const Quaternion& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a variant vector.
         bool operator !=(const VariantVector& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a string vector.
@@ -542,6 +571,8 @@ namespace My3D
         bool operator !=(const VariantMap& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a rect.
         bool operator !=(const Rect& rhs) const { return !(*this == rhs); }
+        /// Test for inequality with an integer rect.
+        bool operator !=(const IntRect& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a string.
         bool operator !=(const String& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a buffer.
@@ -662,6 +693,11 @@ namespace My3D
         const Vector3& GetVector3() const { return type_ == VAR_VECTOR3 ? value_.vector3_ : Vector3::ZERO; }
         /// Return Vector4 or zero on type mismatch.
         const Vector4& GetVector4() const { return type_ == VAR_VECTOR4 ? value_.vector4_ : Vector4::ZERO; }
+        /// Return quaternion or identity on type mismatch.
+        const Quaternion& GetQuaternion() const
+        {
+            return type_ == VAR_QUATERNION ? value_.quaternion_ : Quaternion::IDENTITY;
+        }
         /// Return color or default on type mismatch. Vector4 is aliased to Color if necessary.
         const Color& GetColor() const { return (type_ == VAR_COLOR || type_ == VAR_VECTOR4) ? value_.color_ : Color::WHITE; }
         /// Return string or empty on type mismatch.
@@ -688,6 +724,8 @@ namespace My3D
         }
         /// Return a rect or empty on type mismatch.
         const Rect& GetRect() const { return type_ == VAR_RECT ? value_.rect_ : Rect::ZERO; }
+        /// Return an integer rect or empty on type mismatch.
+        const IntRect& GetIntRect() const { return type_ == VAR_INTRECT ? value_.intRect_ : IntRect::ZERO; }
         /// Return an IntVector2 or empty on type mismatch.
         const IntVector2& GetIntVector2() const
         {
@@ -785,6 +823,7 @@ namespace My3D
     template <> inline VariantType GetVariantType<Vector2>() { return VAR_VECTOR2; }
     template <> inline VariantType GetVariantType<Vector3>() { return VAR_VECTOR3; }
     template <> inline VariantType GetVariantType<Vector4>() { return VAR_VECTOR4; }
+    template <> inline VariantType GetVariantType<Quaternion>() { return VAR_QUATERNION; }
     template <> inline VariantType GetVariantType<Color>() { return VAR_COLOR; }
     template <> inline VariantType GetVariantType<String>() { return VAR_STRING; }
     template <> inline VariantType GetVariantType<StringHash>() { return VAR_INT; }
@@ -793,6 +832,7 @@ namespace My3D
     template <> inline VariantType GetVariantType<StringVector>() { return VAR_STRINGVECTOR; }
     template <> inline VariantType GetVariantType<VariantMap>() { return VAR_VARIANTMAP; }
     template <> inline VariantType GetVariantType<Rect>() { return VAR_RECT; }
+    template <> inline VariantType GetVariantType<IntRect>() { return VAR_INTRECT; }
     template <> inline VariantType GetVariantType<IntVector2>() { return VAR_INTVECTOR2; }
     template <> inline VariantType GetVariantType<IntVector3>() { return VAR_INTVECTOR3; }
     template <> inline VariantType GetVariantType<Matrix3>() { return VAR_MATRIX3; }
@@ -829,9 +869,11 @@ namespace My3D
     template <> MY3D_API Vector2 Variant::Get<Vector2>() const;
     template <> MY3D_API Vector3 Variant::Get<Vector3>() const;
     template <> MY3D_API Vector4 Variant::Get<Vector4>() const;
+    template <> MY3D_API const Quaternion& Variant::Get<const Quaternion&>() const;
     template <> MY3D_API Color Variant::Get<Color>() const;
     template <> MY3D_API String Variant::Get<String>() const;
     template <> MY3D_API Rect Variant::Get<Rect>() const;
+    template <> MY3D_API const IntRect& Variant::Get<const IntRect&>() const;
     template <> MY3D_API IntVector2 Variant::Get<IntVector2>() const;
     template <> MY3D_API IntVector3 Variant::Get<IntVector3>() const;
     template <> MY3D_API PODVector<unsigned char> Variant::Get<PODVector<unsigned char> >() const;

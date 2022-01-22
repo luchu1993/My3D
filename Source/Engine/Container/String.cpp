@@ -342,6 +342,20 @@ String& String::AppendWithFormatArgs(const char *formatString, va_list args)
     }
 }
 
+String String::Replaced(char replaceThis, char replaceWith, bool caseSensitive) const
+{
+    String ret(*this);
+    ret.Replace(replaceThis, replaceWith, caseSensitive);
+    return ret;
+}
+
+String String::Replaced(const String& replaceThis, const String& replaceWith, bool caseSensitive) const
+{
+    String ret(*this);
+    ret.Replace(replaceThis, replaceWith, caseSensitive);
+    return ret;
+}
+
 String& String::Append(const String &str)
 {
     return *this += str;
@@ -367,6 +381,158 @@ String& String::Append(char c)
 String& String::Append(const char *str)
 {
     return *this += str;
+}
+
+unsigned String::Find(char c, unsigned startPos, bool caseSensitive) const
+{
+    if (caseSensitive)
+    {
+        for (unsigned i = startPos; i < length_; ++i)
+        {
+            if (buffer_[i] == c)
+                return i;
+        }
+    }
+    else
+    {
+        c = (char)tolower(c);
+        for (unsigned i = startPos; i < length_; ++i)
+        {
+            if (tolower(buffer_[i]) == c)
+                return i;
+        }
+    }
+
+    return NPOS;
+}
+
+unsigned String::Find(const String& str, unsigned startPos, bool caseSensitive) const
+{
+    if (!str.length_ || str.length_ > length_)
+        return NPOS;
+
+    char first = str.buffer_[0];
+    if (!caseSensitive)
+        first = (char)tolower(first);
+
+    for (unsigned i = startPos; i <= length_ - str.length_; ++i)
+    {
+        char c = buffer_[i];
+        if (!caseSensitive)
+            c = (char)tolower(c);
+
+        if (c == first)
+        {
+            unsigned skip = NPOS;
+            bool found = true;
+            for (unsigned j = 1; j < str.length_; ++j)
+            {
+                c = buffer_[i + j];
+                char d = str.buffer_[j];
+                if (!caseSensitive)
+                {
+                    c = (char)tolower(c);
+                    d = (char)tolower(d);
+                }
+
+                if (skip == NPOS && c == first)
+                    skip = i + j - 1;
+
+                if (c != d)
+                {
+                    found = false;
+                    if (skip != NPOS)
+                        i = skip;
+                    break;
+                }
+            }
+            if (found)
+                return i;
+        }
+    }
+
+    return NPOS;
+}
+
+unsigned String::FindLast(char c, unsigned startPos, bool caseSensitive) const
+{
+    if (startPos >= length_)
+        startPos = length_ - 1;
+
+    if (caseSensitive)
+    {
+        for (unsigned i = startPos; i < length_; --i)
+        {
+            if (buffer_[i] == c)
+                return i;
+        }
+    }
+    else
+    {
+        c = (char)tolower(c);
+        for (unsigned i = startPos; i < length_; --i)
+        {
+            if (tolower(buffer_[i]) == c)
+                return i;
+        }
+    }
+
+    return NPOS;
+}
+
+unsigned String::FindLast(const String& str, unsigned startPos, bool caseSensitive) const
+{
+    if (!str.length_ || str.length_ > length_)
+        return NPOS;
+    if (startPos > length_ - str.length_)
+        startPos = length_ - str.length_;
+
+    char first = str.buffer_[0];
+    if (!caseSensitive)
+        first = (char)tolower(first);
+
+    for (unsigned i = startPos; i < length_; --i)
+    {
+        char c = buffer_[i];
+        if (!caseSensitive)
+            c = (char)tolower(c);
+
+        if (c == first)
+        {
+            bool found = true;
+            for (unsigned j = 1; j < str.length_; ++j)
+            {
+                c = buffer_[i + j];
+                char d = str.buffer_[j];
+                if (!caseSensitive)
+                {
+                    c = (char)tolower(c);
+                    d = (char)tolower(d);
+                }
+
+                if (c != d)
+                {
+                    found = false;
+                    break;
+                }
+            }
+            if (found)
+                return i;
+        }
+    }
+
+    return NPOS;
+}
+
+bool String::StartsWith(const String& str, bool caseSensitive) const
+{
+    return Find(str, 0, caseSensitive) == 0;
+}
+
+bool String::EndsWith(const String& str, bool caseSensitive) const
+{
+    unsigned pos = FindLast(str, Length() - 1, caseSensitive);
+    return pos != NPOS && pos == Length() - str.Length();
 }
 
 int String::Compare(const String& str, bool caseSensitive) const

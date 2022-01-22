@@ -8,7 +8,7 @@
 
 namespace My3D
 {
-    const Quaternion Quaternion::IDENTIFY;
+    const Quaternion Quaternion::IDENTITY;
 
     String Quaternion::ToString() const
     {

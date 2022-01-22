@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "Container/"
+#include "Container/List.h"
 #include "Core/Object.h"
 #include "Core/Mutex.h"
 #include "Core/StringUtils.h"
@@ -28,6 +28,7 @@ static const int LOG_ERROR = 4;
 /// Disable all log messages.
 static const int LOG_NONE = 5;
 
+class File;
 
 /// Stored log message from another thread.
 struct StoredLogMessage
@@ -59,9 +60,26 @@ public:
     explicit Log(Context* context);
     ~Log() override;
 
-    void SetLevel(int level);
+    /// Open the log file.
+    void Open(const String& fileName);
+    /// Close the log file.
+    void Close();
 
+    /// Set logging level.
+    void SetLevel(int level);
+    /// Set whether to timestamp log messages.
+    void SetTimeStamp(bool enable);
+    /// Set quiet mode ie. only print error entries to standard error stream (which is normally redirected to console also). Output to log file is not affected by this mode.
     void SetQuiet(bool quiet);
+
+    /// Return logging level.
+    int GetLevel() const { return level_; }
+    /// Return whether log messages are timestamped.
+    bool GetTimeStamp() const { return timeStamp_; }
+    /// Return last log message.
+    String GetLastMessage() const { return lastMessage_; }
+    /// Return whether log is in quiet mode (only errors printed to standard error stream).
+    bool IsQuiet() const { return quiet_; }
 
     static void Write(int level,  const String& message);
     static void WriteFormat(int level, const char* format, ...);
@@ -79,7 +97,6 @@ private:
     List<StoredLogMessage> threadMessages_;
     /// Log file.
     SharedPtr<File> logFile_;
-
     /// Last log message
     String lastMessage_;
     /// Logging level

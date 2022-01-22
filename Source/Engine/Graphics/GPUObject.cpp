@@ -30,6 +30,10 @@ namespace My3D
     {
     }
 
+    void GPUObject::Release()
+    {
+    }
+
     void GPUObject::ClearDataLost()
     {
         dataLost_ = false;

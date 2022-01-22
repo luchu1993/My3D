@@ -241,6 +241,18 @@ public:
     String& Append(char c);
     /// Return the C string.
     const char* CString() const { return buffer_; }
+    /// Return index to the first occurrence of a string, or NPOS if not found.
+    unsigned Find(const String& str, unsigned startPos = 0, bool caseSensitive = true) const;
+    /// Return index to the first occurrence of a character, or NPOS if not found.
+    unsigned Find(char c, unsigned startPos = 0, bool caseSensitive = true) const;
+    /// Return index to the last occurrence of a string, or NPOS if not found.
+    unsigned FindLast(const String& str, unsigned startPos = NPOS, bool caseSensitive = true) const;
+    /// Return index to the last occurrence of a character, or NPOS if not found.
+    unsigned FindLast(char c, unsigned startPos = NPOS, bool caseSensitive = true) const;
+    /// Return whether starts with a string.
+    bool StartsWith(const String& str, bool caseSensitive = true) const;
+    /// Return whether ends with a string.
+    bool EndsWith(const String& str, bool caseSensitive = true) const;
     /// Return length
     unsigned Length() const { return length_; }
     /// Return buffer capacity
@@ -251,11 +263,13 @@ public:
     int Compare(const String& str, bool caseSensitive = true) const;
     /// Return comparison result with a C string.
     int Compare(const char* str, bool caseSensitive = true) const;
-    /// Construct UTF8
-    /// content from Latin1
+    /// Return whether contains a specific occurrence of a string.
+    bool Contains(const String& str, bool caseSensitive = true) const { return Find(str, 0, caseSensitive) != NPOS; }
+    /// Return whether contains a specific character.
+    bool Contains(char c, bool caseSensitive = true) const { return Find(c, 0, caseSensitive) != NPOS; }
+    /// Construct UTF8 content from Latin1
     void SetUTF8FromLatin1(const char* str);
-    /// Construct UTF8
-    /// content form wide characters
+    /// Construct UTF8 content form wide characters
     void SetUTF8FromWChar(const wchar_t* str);
     /// Swap with another string
     void Swap(String& str);

@@ -4,10 +4,12 @@
 
 #include "SDL.h"
 #include "SDL_syswm.h"
+
 #include "Core/Context.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsImpl.h"
 #include "Graphics/VertexBuffer.h"
+#include "Graphics/RenderSurface.h"
 #include "IO/Log.h"
 
 
@@ -58,7 +60,19 @@ namespace My3D
         if (renderTargets_[0])
         {
             width = renderTargets_[0]->GetWidth();
+            height = renderTargets_[0]->GetHeight();
         }
+        else if (depthStencil_)
+        {
+            width = depthStencil_->GetWidth();
+            height = depthStencil_->GetHeight();
+        }
+        else
+        {
+            width = width_;
+            height = height_;
+        }
+
         return IntVector2(width, height);
     }
 

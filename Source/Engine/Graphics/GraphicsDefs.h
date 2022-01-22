@@ -19,6 +19,46 @@ MY3D_FLAGSET(ClearTarget, ClearTargetFlags);
 static const int MAX_RENDERTARGETS = 4;
 static const int MAX_VERTEX_STREAMS = 4;
 
+/// Texture filtering mode.
+enum TextureFilterMode
+{
+    FILTER_NEAREST = 0,
+    FILTER_BILINEAR,
+    FILTER_TRILINEAR,
+    FILTER_ANISOTROPIC,
+    FILTER_NEAREST_ANISOTROPIC,
+    FILTER_DEFAULT,
+    MAX_FILTERMODES
+};
+
+/// Texture addressing mode.
+enum TextureAddressMode
+{
+    ADDRESS_WRAP = 0,
+    ADDRESS_MIRROR,
+    ADDRESS_CLAMP,
+    ADDRESS_BORDER,
+    MAX_ADDRESSMODES
+};
+
+/// Texture coordinates.
+enum TextureCoordinate
+{
+    COORD_U = 0,
+    COORD_V,
+    COORD_W,
+    MAX_COORDS
+};
+
+/// Texture usage types.
+enum TextureUsage
+{
+    TEXTURE_STATIC = 0,
+    TEXTURE_DYNAMIC,
+    TEXTURE_RENDERTARGET,
+    TEXTURE_DEPTHSTENCIL
+};
+
 /// Shader types.
 enum ShaderType
 {

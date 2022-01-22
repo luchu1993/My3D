@@ -120,7 +120,7 @@ namespace My3D
         /// Read a text line.
         String ReadLine();
 
-    private:
+    protected:
         /// Stream position
         unsigned position_;
         /// Stream size

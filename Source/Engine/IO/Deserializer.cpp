@@ -231,6 +231,69 @@ namespace My3D
         return StringHash(ReadUInt());
     }
 
+    PODVector<unsigned char> Deserializer::ReadBuffer()
+    {
+        PODVector<unsigned char> ret(ReadVLE());
+        if (ret.Size())
+            Read(&ret[0], ret.Size());
+        return ret;
+    }
+
+    VariantVector Deserializer::ReadVariantVector()
+    {
+        VariantVector ret(ReadVLE());
+        for (unsigned i = 0; i < ret.Size(); ++i)
+            ret[i] = ReadVariant();
+        return ret;
+    }
+
+    StringVector Deserializer::ReadStringVector()
+    {
+        StringVector ret(ReadVLE());
+        for (unsigned i = 0; i < ret.Size(); ++i)
+            ret[i] = ReadString();
+        return ret;
+    }
+
+    unsigned int Deserializer::ReadVLE()
+    {
+        unsigned ret;
+        unsigned char byte;
+
+        byte = ReadUByte();
+        ret = (unsigned)(byte & 0x7fu);
+        if (byte < 0x80)
+            return ret;
+
+        byte = ReadUByte();
+        ret |= ((unsigned)(byte & 0x7fu)) << 7u;
+        if (byte < 0x80)
+            return ret;
+
+        byte = ReadUByte();
+        ret |= ((unsigned)(byte & 0x7fu)) << 14u;
+        if (byte < 0x80)
+            return ret;
+
+        byte = ReadUByte();
+        ret |= ((unsigned)byte) << 21u;
+        return ret;
+    }
+
+    VariantMap Deserializer::ReadVariantMap()
+    {
+        VariantMap ret;
+        unsigned num = ReadVLE();
+
+        for (unsigned i = 0; i < num; ++i)
+        {
+            StringHash key = ReadStringHash();
+            ret[key] = ReadVariant();
+        }
+
+        return ret;
+    }
+
     Variant Deserializer::ReadVariant()
     {
         auto type = (VariantType)ReadUByte();

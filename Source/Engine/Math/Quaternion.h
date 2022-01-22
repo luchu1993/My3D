@@ -55,6 +55,13 @@ namespace My3D
         {
             return Quaternion(w_ * rhs, x_ * rhs, y_ * rhs, z_ * rhs);
         }
+        /// Test for equality with another quaternion without epsilon.
+        bool operator ==(const Quaternion& rhs) const
+        {
+            return w_ == rhs.w_ && x_ == rhs.x_ && y_ == rhs.y_ && z_ == rhs.z_;
+        }
+        /// Test for inequality with another quaternion without epsilon.
+        bool operator !=(const Quaternion& rhs) const { return !(*this == rhs); }
         /// Define from an angle (in degrees) and axis
         void FromAngleAxis(float angle, const Vector3& axis);
         /// Define from Euler angles (in degree). Equivalent to Y*X*Z
@@ -129,6 +136,6 @@ namespace My3D
         float z_;
 
         /// Identify quaternion
-        static const Quaternion IDENTIFY;
+        static const Quaternion IDENTITY;
     };
 }

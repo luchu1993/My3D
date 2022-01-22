@@ -98,5 +98,14 @@ MY3D_API unsigned GetStringListIndex(const String& value, const String* strings,
 MY3D_API unsigned GetStringListIndex(const char* value, const String* strings, unsigned defaultIndex, bool caseSensitive = false);
 /// Return an index to a C string list corresponding to the given C string, or a default value if not found. The string list must be empty-terminated.
 MY3D_API unsigned GetStringListIndex(const char* value, const char** strings, unsigned defaultIndex, bool caseSensitive = false);
-
+/// Return a formatted string.
+MY3D_API String ToString(const char* formatString, ...);
+/// Return whether a char is an alphabet letter.
+MY3D_API bool IsAlpha(unsigned ch);
+/// Return whether a char is a digit.
+MY3D_API bool IsDigit(unsigned ch);
+/// Return char in uppercase.
+MY3D_API unsigned ToUpper(unsigned ch);
+/// Return char in lowercase.
+MY3D_API unsigned ToLower(unsigned ch);
 }
