@@ -1,6 +1,10 @@
 # engine build options
-# setup logging config
-set(ENABLE_LOGGING ON CACHE BOOL "Enable logging subsystem." FORCE)
+
+# setup logging
+set(MY3D_LOGGING ON CACHE BOOL "Enable logging subsystem.")
 if (ENABLE_LOGGING)
     add_definitions(-DMY3D_LOGGING)
 endif()
+
+# setup testing
+set(MY3D_TESTING ON CACHE BOOL "Enable testing.")

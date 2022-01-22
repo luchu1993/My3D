@@ -12,3 +12,8 @@ endforeach ()
 add_subdirectory(Engine)
 add_subdirectory(Samples)
 
+# Testing
+if (MY3D_TESTING)
+    add_subdirectory(Testing)
+endif()
+

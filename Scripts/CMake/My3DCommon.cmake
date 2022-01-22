@@ -103,7 +103,7 @@ endmacro()
 
 macro(setup_main_executable)
     cmake_parse_arguments(ARG "WIN32" "" "" ${ARGN})
-    if (WIN32)
+    if (ARG_WIN32)
         set (EXEC_TYPE WIN32)
     endif()
 
