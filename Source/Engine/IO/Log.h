@@ -4,20 +4,52 @@
 
 #pragma once
 
-#include "My3D.h"
+#include "Container/"
 #include "Core/Object.h"
+#include "Core/Mutex.h"
+#include "Core/StringUtils.h"
+
 
 namespace My3D
 {
 
+/// Fictional message level to indicate a stored raw message.
 static const int LOG_RAW = -1;
+/// Trace message level.
 static const int LOG_TRACE = 0;
+/// Debug message level. By default only shown in debug mode.
 static const int LOG_DEBUG = 1;
+/// Informative message level.
 static const int LOG_INFO = 2;
+/// Warning message level.
 static const int LOG_WARNING = 3;
+/// Error message level.
 static const int LOG_ERROR = 4;
+/// Disable all log messages.
 static const int LOG_NONE = 5;
 
+
+/// Stored log message from another thread.
+struct StoredLogMessage
+{
+    /// Construct undefined.
+    StoredLogMessage() = default;
+
+    /// Construct with parameters.
+    StoredLogMessage(const String& message, int level, bool error)
+        : message_(message)
+        , level_(level)
+        , error_(error)
+    {
+    }
+
+    /// Message text.
+    String message_;
+    /// Message level. -1 for raw messages.
+    int level_{};
+    /// Error flag for raw messages.
+    bool error_{};
+};
 
 class MY3D_API Log : public Object
 {
@@ -38,6 +70,16 @@ public:
 private:
     /// Send logging event
     static void SendLogEvent(const String& message, int level);
+
+    /// Handle end of frame. Process the threaded log messages.
+    void HandleEndFrame(StringHash eventType, VariantMap& eventData);
+    /// Mutex for threaded operation.
+    Mutex logMutex_;
+    /// Log messages from other threads.
+    List<StoredLogMessage> threadMessages_;
+    /// Log file.
+    SharedPtr<File> logFile_;
+
     /// Last log message
     String lastMessage_;
     /// Logging level

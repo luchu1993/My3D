@@ -7,6 +7,7 @@
 #include "Core/Context.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsImpl.h"
+#include "Graphics/VertexBuffer.h"
 #include "IO/Log.h"
 
 
@@ -54,12 +55,80 @@ namespace My3D
     {
         int width, height;
 
+        if (renderTargets_[0])
+        {
+            width = renderTargets_[0]->GetWidth();
+        }
         return IntVector2(width, height);
     }
 
     void Graphics::Clear(ClearTargetFlags flags, const Color &color, float depth, unsigned int stencil)
     {
         IntVector2 rtSize = GetRenderTargetDimensions();
+    }
+
+    void Graphics::SetVertexBuffer(VertexBuffer *buffer)
+    {
+        static PODVector<VertexBuffer*> vertexBuffers(1);
+        vertexBuffers[0] = buffer;
+        SetVertexBuffers(vertexBuffers);
+    }
+
+    bool Graphics::SetVertexBuffers(const PODVector<VertexBuffer*> &buffers, unsigned int instanceOffset)
+    {
+        if (buffers.Size() > MAX_VERTEX_STREAMS)
+        {
+            MY3D_LOGERROR("Too many vertex buffers");
+            return false;
+        }
+
+        for (unsigned i = 0; i < MAX_VERTEX_STREAMS; ++i)
+        {
+            VertexBuffer* buffer = nullptr;
+            bool changed = false;
+
+            buffer = i < buffers.Size() ? buffers[i] : nullptr;
+            if (buffer)
+            {
+                const PODVector<VertexElement>& elements = buffer->GetElements();
+                // Check if buffer has per-instance data
+                bool hasInstanceData = elements.Size() && elements[0].perInstance_;
+                unsigned offset = hasInstanceData ? instanceOffset * buffer->GetVertexSize() : 0;
+
+                if (buffer != vertexBuffers_[i] || offset != impl_->vertexOffsets_[i])
+                {
+                    vertexBuffers_[i] = buffer;
+                    impl_->vertexBuffers_[i] = (ID3D11Buffer*) buffer->GetGPUObject();
+                    impl_->vertexSizes_[i] = buffer->GetVertexSize();
+                    impl_->vertexOffsets_[i] = offset;
+                    changed = true;
+                }
+            }
+            else if (vertexBuffers_[i])
+            {
+                vertexBuffers_[i] = nullptr;
+                impl_->vertexBuffers_[i] = nullptr;
+                impl_->vertexSizes_[i] = 0;
+                impl_->vertexOffsets_[i] = 0;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                impl_->vertexDeclarationDirty_ = true;
+                if (impl_->firstDirtyVB_ == M_MAX_UNSIGNED)
+                    impl_->firstDirtyVB_ = impl_->lastDirtyVB_ = i;
+                else
+                {
+                    if (i < impl_->firstDirtyVB_)
+                        impl_->firstDirtyVB_ = i;
+                    if (i > impl_->lastDirtyVB_)
+                        impl_->lastDirtyVB_ = i;
+                }
+            }
+        }
+
+        return true;
     }
 
     void Graphics::Close()
@@ -413,5 +482,10 @@ namespace My3D
     bool Graphics::IsInitialized() const
     {
         return window_ != nullptr && impl_->GetDevice() != nullptr;
+    }
+
+    VertexBuffer *Graphics::GetVertexBuffer(unsigned int index) const
+    {
+        return index < MAX_VERTEX_STREAMS ? vertexBuffers_[index] : nullptr;
     }
 }

@@ -477,6 +477,18 @@ namespace My3D
         return ret;
     }
 
+    String ToString(void* value)
+    {
+        return ToStringHex((unsigned)(size_t)value);
+    }
+
+    String ToStringHex(unsigned value)
+    {
+        char tempBuffer[CONVERSION_BUFFER_LENGTH];
+        sprintf(tempBuffer, "%08x", value);
+        return String(tempBuffer);
+    }
+
     void BufferToString(String& dest, const void* data, unsigned size)
     {
         // Precalculate needed string size

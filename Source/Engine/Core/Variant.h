@@ -135,6 +135,8 @@ namespace My3D
         Variant(const Vector3& value) { *this = value; }
         /// Construct from Vector4
         Variant(const Vector4& value) { *this = value; }
+        /// Construct from a quaternion.
+        Variant(const Quaternion& value) { *this = value; }
         /// Construct from a color
         Variant(const Color& value) { *this = value; }
         /// Construct from a string
@@ -147,10 +149,14 @@ namespace My3D
         Variant(void* value) { *this = value; }
         /// Construct from a variant vector
         Variant(const VariantVector& value) { *this = value; }
+        /// Construct from a variant map.
+        Variant(const VariantMap& value) { *this = value; }
         /// Construct from a string vector
         Variant(const StringVector& value) { *this = value; }
         /// Construct from a rect
         Variant(const Rect& value) { *this = value; }
+        /// Construct from an integer rect.
+        Variant(const IntRect& value) { *this = value; }
         /// Construct from an IntVector2
         Variant(const IntVector2& value) { *this = value; }
         /// Construct from an IntVector3

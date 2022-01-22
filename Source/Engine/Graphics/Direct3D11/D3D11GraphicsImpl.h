@@ -76,5 +76,19 @@ namespace My3D
         bool blendStateDirty_;
         /// Depth state dirty flag.
         bool depthStateDirty_;
+        /// Hash of current blend state.
+        unsigned blendStateHash_;
+        /// Hash of current depth state.
+        unsigned depthStateHash_;
+        /// Hash of current rasterizer state.
+        unsigned rasterizerStateHash_;
+        /// First dirtied texture unit.
+        unsigned firstDirtyTexture_;
+        /// Last dirtied texture unit.
+        unsigned lastDirtyTexture_;
+        /// First dirtied vertex buffer.
+        unsigned firstDirtyVB_;
+        /// Last dirtied vertex buffer.
+        unsigned lastDirtyVB_;
     };
 }

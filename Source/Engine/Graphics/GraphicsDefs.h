@@ -63,7 +63,14 @@ enum TextureUnit
     MAX_MATERIAL_TEXTURE_UNITS = 8,
     MAX_TEXTURE_UNITS = 16
 };
-
+/// Vertex/index buffer lock state.
+enum LockState
+{
+    LOCK_NONE = 0,
+    LOCK_HARDWARE,
+    LOCK_SHADOW,
+    LOCK_SCRATCH
+};
 /// Arbitrary vertex declaration element datatypes.
 enum VertexElementType
 {

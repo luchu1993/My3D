@@ -8,6 +8,9 @@
 #include "Core/Context.h"
 #include "IO/Log.h"
 #include "Core/Mutex.h"
+#include "Core/StringUtils.h"
+
+
 
 namespace My3D
 {
@@ -135,6 +138,67 @@ void Graphics::RemoveGPUObject(GPUObject *object)
     gpuObjects_.Remove(object);
 }
 
+void* Graphics::ReserveScratchBuffer(unsigned size)
+{
+    if (!size)
+        return nullptr;
+
+    if (size > maxScratchBufferRequest_)
+        maxScratchBufferRequest_ = size;
+
+    // First check for a free buffer that is large enough
+    for (auto& buffer : scratchBuffers_)
+    {
+        if (!buffer.reserved_ && buffer.size_ >= size)
+        {
+            buffer.reserved_ = true;
+            return buffer.data_.Get();
+        }
+    }
+
+    // Then check if a free buffer can be resized
+    for (auto& buffer : scratchBuffers_)
+    {
+        if (!buffer.reserved_)
+        {
+            buffer.data_ = new unsigned char[size];
+            buffer.size_ = size;
+            buffer.reserved_ = true;
+
+            MY3D_LOGDEBUG("Resized scratch buffer to size " + String(size));
+
+            return buffer.data_.Get();
+        }
+    }
+
+    // Finally allocate a new buffer
+    ScratchBuffer newBuffer;
+    newBuffer.data_ = new unsigned char[size];
+    newBuffer.size_ = size;
+    newBuffer.reserved_ = true;
+    scratchBuffers_.Push(newBuffer);
+    MY3D_LOGDEBUG("Allocated scratch buffer with size " + String(size));
+
+    return newBuffer.data_.Get();
+}
+
+void Graphics::FreeScratchBuffer(void *buffer)
+{
+    if (!buffer)
+        return;
+
+    for (auto& scratchBuffer : scratchBuffers_)
+    {
+        if (scratchBuffer.reserved_ && scratchBuffer.data_.Get() == buffer)
+        {
+            scratchBuffer.reserved_ = false;
+            return;
+        }
+    }
+
+    MY3D_LOGDEBUG("Reserved scratch buffer " + ToStringHex((unsigned)(size_t)buffer) + " not found");
+}
+
 void Graphics::OnScreenModeChanged()
 {
 #ifdef MY3D_LOGGING
@@ -168,6 +232,18 @@ bool Graphics::ToggleFullscreen()
     Swap(primaryWindowMode_, secondaryWindowMode_);
     return SetScreenMode(primaryWindowMode_.width_, primaryWindowMode_.height_, primaryWindowMode_.screenParams_);
 }
+
+    IntVector2 Graphics::GetWindowPosition() const
+    {
+        if (window_)
+        {
+            IntVector2 position;
+            SDL_GetWindowPosition(window_, &position.x_, &position.y_);
+            return position;
+        }
+
+        return position_;
+    }
 
 PODVector<IntVector3> Graphics::GetResolutions(int monitor) const
 {
@@ -220,6 +296,35 @@ unsigned Graphics::FindBestResolutionIndex(int monitor, int width, int height, i
     }
 
     return best;
+}
+
+IntVector2 Graphics::GetDesktopResolution(int monitor) const
+{
+    SDL_DisplayMode mode;
+    SDL_GetDesktopDisplayMode(monitor, &mode);
+    return IntVector2(mode.w, mode.h);
+}
+
+int Graphics::GetMonitorCount() const
+{
+return SDL_GetNumVideoDisplays();
+}
+
+int Graphics::GetCurrentMonitor() const
+{
+    return window_ ? SDL_GetWindowDisplayIndex(window_) : 0;
+}
+
+bool Graphics::GetMaximized() const
+{
+    return window_ != nullptr && static_cast<bool>(SDL_GetWindowFlags(window_) & SDL_WINDOW_MAXIMIZED);
+}
+
+Vector3 Graphics::GetDisplayDPI(int monitor) const
+{
+    Vector3 result;
+    SDL_GetDisplayDPI(monitor, &result.z_, &result.x_, &result.y_);
+    return result;
 }
 
 void RegisterGraphicsLibrary(Context* context)

@@ -5,6 +5,7 @@
 #include "IO/Log.h"
 #include "Core/Timer.h"
 #include "Core/ProcessUtils.h"
+#include "Core/CoreEvents.h"
 
 
 namespace My3D
@@ -34,6 +35,7 @@ Log::Log(Context *context)
     , quiet_(false)
 {
     logInstance = this;
+    SubscribeToEvent(E_ENDFRAME, MY3D_HANDLER(Log, HandleEndFrame));
 }
 
 Log::~Log()

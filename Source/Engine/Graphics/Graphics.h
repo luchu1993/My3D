@@ -7,6 +7,7 @@
 #include "Graphics/GraphicsDefs.h"
 #include "Core/Object.h"
 #include "Core/Mutex.h"
+#include "Container/ArrayPtr.h"
 
 
 struct SDL_Window;
@@ -16,6 +17,23 @@ namespace My3D
     class GraphicsImpl;
     class RenderSurface;
     class GPUObject;
+    class Vector3;
+    class Vector4;
+    class VertexBuffer;
+    class IndexBuffer;
+
+    /// CPU-side scratch buffer for vertex data updates
+    struct ScratchBuffer
+    {
+        ScratchBuffer() : size_(0), reserved_(false) { }
+
+        /// Buffer data
+        SharedArrayPtr<unsigned char> data_;
+        /// Data size
+        unsigned size_;
+        /// Reserved flag
+        bool reserved_;
+    };
 
     /// Screen mode parameters
     struct ScreenModeParams
@@ -26,8 +44,12 @@ namespace My3D
         bool borderless_{};
         /// Whether the window is resizable
         bool resizable_{};
+        /// Whether the high DPI is enabled.
+        bool highDPI_{};
         /// whether the vertical synchronization is used.
         bool vsync_{};
+        /// Whether the triple bufferization is used.
+        bool tripleBuffer_{};
         /// Level of multi-sampling
         int multiSample_{1};
         /// Monitor for fullscreen mode.
@@ -40,7 +62,9 @@ namespace My3D
             return fullscreen_ == rhs.fullscreen_
                    && borderless_ == rhs.borderless_
                    && resizable_ == rhs.resizable_
+                   && highDPI_ == rhs.highDPI_
                    // && vsync_ == rhs.vsync_
+                   && tripleBuffer_ == rhs.tripleBuffer_
                    && multiSample_ == rhs.multiSample_
                    && monitor_ == rhs.monitor_
                    && refreshRate_ == rhs.refreshRate_;
@@ -101,6 +125,13 @@ namespace My3D
         void EndFrame();
         /// Clear any or all of render target, depth buffer and stencil buffer
         void Clear(ClearTargetFlags flags, const Color& color = Color::TRANSPARENT_BLACK, float depth = 1.0f, unsigned stencil = 0);
+        void SetVertexBuffer(VertexBuffer* buffer);
+        /// Set multiple vertex buffers.
+        bool SetVertexBuffers(const PODVector<VertexBuffer*>& buffers, unsigned instanceOffset = 0);
+        /// Set multiple vertex buffers.
+        bool SetVertexBuffers(const Vector<SharedPtr<VertexBuffer> >& buffers, unsigned instanceOffset = 0);
+        /// Set index buffer.
+        void SetIndexBuffer(IndexBuffer* buffer);
         /// Return current rendertarget width and height.
         IntVector2 GetRenderTargetDimensions() const;
         /// Reset all rendertargets, depth-stencil surface and viewport.
@@ -117,6 +148,10 @@ namespace My3D
         void AddGPUObject(GPUObject* object);
         /// Remove a GPU object. Called by GPUObject.
         void RemoveGPUObject(GPUObject* object);
+        /// Reserve a CPU-side scratch buffer
+        void* ReserveScratchBuffer(unsigned size);
+        /// Free a CPU-side scratch buffer
+        void FreeScratchBuffer(void* buffer);
         /// Return whether rendering initialized
         bool IsInitialized() const;
         /// Return graphics implementation, which holds the actual API-specific resources
@@ -137,6 +172,8 @@ namespace My3D
         int GetHeight() const { return height_; }
         /// Return screen mode parameters
         const ScreenModeParams& GetScreenModeParams() const { return screenParams_; }
+        /// Return multisample mode (1 = no multisampling).
+        int GetMultiSample() const { return screenParams_.multiSample_; }
         /// Return window size in pixels
         IntVector2 GetSize() const { return IntVector2(width_, height_); }
         /// Return whether window is fullscreen
@@ -153,16 +190,37 @@ namespace My3D
         int GetRefreshRate() const { return screenParams_.refreshRate_; }
         /// Return the current monitor index
         int GetMonitor() const { return screenParams_.monitor_; }
+        /// Return whether triple buffering is enabled.
+        bool GetTripleBuffer() const { return screenParams_.tripleBuffer_; }
         /// Return whether teh main window using sRGB conversion on write
         bool GetSRGB() const { return sRGB_; }
+        /// Return whether the GPU command buffer is flushed each frame.
+        bool GetFlushGPU() const { return flushGPU_; }
         /// Return allowed screen orientations
         const String& GetOrientations() const { return orientations_; }
+        /// Return whether sRGB conversion on texture sampling is supported.
+        bool GetSRGBSupport() const { return sRGBSupport_; }
+        /// Return whether sRGB conversion on rendertarget writing is supported.
+        bool GetSRGBWriteSupport() const { return sRGBWriteSupport_; }
         /// Return supported fullscreen resolutions (third component is refreshRate). Will be empty if listing the resolutions is not supported on the platform (e.g. Web).
         PODVector<IntVector3> GetResolutions(int monitor) const;
         /// Return index of the best resolution for requested width, height and refresh rate.
         unsigned FindBestResolutionIndex(int monitor, int width, int height, int refreshRate) const;
         /// Return supported multisampling levels.
         PODVector<int> GetMultiSampleLevels() const;
+        /// Return the desktop resolution.
+        /// @property
+        IntVector2 GetDesktopResolution(int monitor) const;
+        /// Return the number of currently connected monitors.
+        int GetMonitorCount() const;
+        /// Returns the index of the display containing the center of the window on success or a negative error code on failure.
+        int GetCurrentMonitor() const;
+        /// Returns true if window is maximized or runs in full screen mode.
+        bool GetMaximized() const;
+        /// Return display dpi information: (hdpi, vdpi, ddpi). On failure returns zero vector.
+        Vector3 GetDisplayDPI(int monitor=0) const;
+        /// Return current vertex buffer by index.
+        VertexBuffer* GetVertexBuffer(unsigned index) const;
 
     private:
         /// Create the application window.
@@ -206,6 +264,16 @@ namespace My3D
         bool flushGPU_{};
         /// sRGB conversion on write flag for teh main window
         bool sRGB_{};
+        /// Instancing support flag.
+        bool instancingSupport_{};
+        /// sRGB conversion on read support flag.
+        bool sRGBSupport_{};
+        /// sRGB conversion on write support flag.
+        bool sRGBWriteSupport_{};
+        /// Vertex buffers in use.
+        VertexBuffer* vertexBuffers_[MAX_VERTEX_STREAMS]{};
+        /// Index buffer in use.
+        IndexBuffer* indexBuffer_{};
         /// Allowed screen orientations.
         String orientations_;
         /// Graphics API name
@@ -214,8 +282,12 @@ namespace My3D
         RenderSurface* renderTargets_[MAX_RENDERTARGETS]{};
         /// Depth-stencil surface in use.
         RenderSurface* depthStencil_{};
+        /// Largest scratch buffer request this frame.
+        unsigned maxScratchBufferRequest_{};
         /// GPU objects.
         PODVector<GPUObject*> gpuObjects_;
+        /// Scratch buffers.
+        Vector<ScratchBuffer> scratchBuffers_;
     };
 
     /// Register Graphics library objects
