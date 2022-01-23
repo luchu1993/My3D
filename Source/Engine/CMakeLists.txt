@@ -4,6 +4,13 @@ define_source_files(RECURSE GROUP)
 add_definitions(-DBUILD_ENGINE)
 
 set (INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
-set (LIBS SDL2)
+set (LIBS SDL2 LZ4)
+
+set(ENGINE_BUILD_TYPE STATIC)
+if (MY3D_SHARED)
+    set(ENGINE_BUILD_TYPE SHARED)
+endif()
+
+message(STATUS "Engine Build Type " ${ENGINE_BUILD_TYPE})
 
 setup_library(${ENGINE_BUILD_TYPE})

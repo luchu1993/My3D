@@ -31,9 +31,7 @@ if (WIN32)
         include_directories (SYSTEM ${DIRECTX_INCLUDE_DIRS})   # These variables may be empty when WinSDK or MinGW is being used
         link_directories (${DIRECTX_LIBRARY_DIRS})
     endif ()
-
 endif()
-
 
 # platform predefine macros
 function (define_platform_config)
@@ -66,7 +64,7 @@ endmacro()
 
 # macro for setting up a library target
 macro(setup_library)
-    cmake_parse_arguments(ARGS "" "" "" ${ARGN})
+    cmake_parse_arguments(ARG "" "" "" ${ARGN})
     check_source_file()
     add_library(${TARGET_NAME} ${ARG_UNPARSED_ARGUMENTS} ${SOURCE_FILES})
     _setup_target ()

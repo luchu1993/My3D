@@ -4,6 +4,7 @@
 
 #include "IO/File.h"
 #include "IO/Log.h"
+#include "IO/PackageFile.h"
 #include "IO/FileSystem.h"
 
 
@@ -87,6 +88,25 @@ bool File::Open(PackageFile* package, const String& fileName)
     if (!package)
         return false;
 
+    const PackageEntry* entry = package->GetEntry(fileName);
+    if (!entry)
+        return false;
+
+    bool success = OpenInternal(package->GetName(), FILE_READ, true);
+    if (!success)
+    {
+        MY3D_LOGERROR("Could not open package file " + fileName);
+        return false;
+    }
+
+    name_ = fileName;
+    offset_ = entry->offset_;
+    checksum_ = entry->checksum_;
+    size_ = entry->size_;
+    compressed_ = package->IsCompressed();
+
+    // Seek to beginning of package entry's file data
+    SeekInternal(offset_);
     return true;
 }
 
@@ -101,6 +121,35 @@ unsigned int File::Read(void *dest, unsigned int size)
     {
         MY3D_LOGERROR("File not opened for reading");
         return 0;
+    }
+
+    if (size + position_ > size_)
+        size = size_ - position_;
+
+    if (!size)
+        return 0;
+
+    if (compressed_)
+    {
+        unsigned sizeLeft = size;
+        auto* destPtr = (unsigned char*) dest;
+
+        while (sizeLeft)
+        {
+            if (!readBuffer_ || readBufferOffset_ >= readBufferSize_)
+            {
+                unsigned char blockHeaderBytes[4];
+                ReadInternal(blockHeaderBytes, sizeof blockHeaderBytes);
+
+            }
+
+            unsigned copySize = Min((readBufferSize_ - readBufferOffset_), sizeLeft);
+            memcpy(destPtr, readBuffer_.Get() + readBufferOffset_, copySize);
+            destPtr += copySize;
+            sizeLeft -= copySize;
+            readBufferOffset_ += copySize;
+            position_ += copySize;
+        }
     }
 
     writeSyncNeeded_ = true;
@@ -187,6 +236,11 @@ void File::Close()
     }
 }
 
+bool File::IsOpen() const
+{
+    return handle_ != nullptr;
+}
+
 void File::Flush()
 {
     if (handle_)
@@ -250,9 +304,14 @@ bool File::OpenInternal(const String &fileName, FileMode mode, bool fromPackage)
     return true;
 }
 
-bool File::IsOpen() const
+bool File::ReadInternal(void *dest, unsigned int size)
 {
-    return handle_ != nullptr;
+    return fread(dest, size, 1, (FILE*)handle_) == 1;
+}
+
+void File::SeekInternal(unsigned int newPosition)
+{
+    fseek((FILE*)handle_, newPosition, SEEK_SET);
 }
 
 }

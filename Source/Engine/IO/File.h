@@ -54,7 +54,6 @@ class PackageFile;
         void Close();
         /// Flush any buffered output to the file.
         void Flush();
-
         /// Return the open mode.
         FileMode GetMode() const { return mode_; }
         /// Return whether is open.

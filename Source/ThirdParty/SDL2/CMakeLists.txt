@@ -278,10 +278,5 @@ set (TARGET_NAME SDL2)
 file (GLOB H_FILES include/*.h)     # Adding the headers into source files list is just for easier file browsing in the IDE
 list (APPEND SOURCE_FILES ${H_FILES})
 
-# Libraries for Win32
-if (WIN32)
-    set (LIBS user32 gdi32 winmm imm32 ole32 oleaut32 version uuid advapi32 setupapi shell32)
-endif()
-
 # Setup target as STATIC library (as the result we never use EXTRA_LDFLAGS linker flags)
 setup_library ()

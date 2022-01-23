@@ -4,8 +4,8 @@ define_platform_config()
 # Set the CMake variables in this scope but only add the compiler defines in the respective library's scope
 
 
-# Add targets
-foreach (TARGET SDL2)
+# Add third party targets
+foreach (TARGET SDL2 LZ4)
     add_subdirectory (ThirdParty/${TARGET})
 endforeach ()
 
