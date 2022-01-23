@@ -10,6 +10,10 @@
 #include "Input/InputEvents.h"
 #include "Core/CoreEvents.h"
 #include "Launch/EngineDefs.h"
+#include "Graphics/Graphics.h"
+#include "IO/FileSystem.h"
+#include "Input/Input.h"
+
 
 #include <cassert>
 
@@ -35,7 +39,9 @@ Engine::Engine(Context *context)
 #ifdef MY3D_LOGGING
     context_->RegisterSubsystem<Log>();
 #endif
-    context->RegisterSubsystem<Time>();
+    context_->RegisterSubsystem<Time>();
+    context_->RegisterSubsystem<FileSystem>();
+    context_->RegisterSubsystem<Input>();
 
     SubscribeToEvent(E_EXITREQUESTED, MY3D_HANDLER(Engine, HandleExitRequested));
 }
@@ -44,9 +50,64 @@ bool Engine::Initialize(const VariantMap& parameters)
 {
     if (initialized_)
         return true;
+    // Set headless mode
+    headless_ = GetParameter(parameters, EP_HEADLESS, false).GetBool();
+    if (!headless_)
+    {
+        context_->RegisterSubsystem<Graphics>();
+    }
 
-    GetSubSystem<Time>()->SetTimerPeriod(1);
+    // Start logging
+    auto* log = GetSubsystem<Log>();
+    if (log)
+    {
+        if (HasParameter(parameters, EP_LOG_LEVEL))
+            log->SetLevel(GetParameter(parameters, EP_LOG_LEVEL).GetInt());
+
+        log->SetQuiet(GetParameter(parameters, EP_LOG_QUIET, false).GetBool());
+        log->Open(GetParameter(parameters, EP_LOG_NAME, "My3D.log").GetString());
+    }
+
+    GetSubsystem<Time>()->SetTimerPeriod(1);
     frameTimer_.Reset();
+
+    auto* fileSystem = GetSubsystem<FileSystem>();
+
+    // Initialize graphics & audio output
+    if (!headless_)
+    {
+        auto* graphics = GetSubsystem<Graphics>();
+
+        graphics->SetWindowTitle(GetParameter(parameters, EP_WINDOW_TITLE, "My3D").GetString());
+
+        if (HasParameter(parameters, EP_WINDOW_POSITION_X) && HasParameter(parameters, EP_WINDOW_POSITION_Y))
+        {
+            graphics->SetWindowPosition
+            (
+                GetParameter(parameters, EP_WINDOW_POSITION_X).GetInt(),
+                GetParameter(parameters, EP_WINDOW_POSITION_Y).GetInt()
+            );
+        }
+
+        if (!graphics->SetMode(
+                GetParameter(parameters, EP_WINDOW_WIDTH, 0).GetInt(),
+                GetParameter(parameters, EP_WINDOW_HEIGHT, 0).GetInt(),
+                GetParameter(parameters, EP_FULL_SCREEN, false).GetBool(),
+                GetParameter(parameters, EP_BORDERLESS, false).GetBool(),
+                GetParameter(parameters, EP_WINDOW_RESIZABLE, false).GetBool(),
+                GetParameter(parameters, EP_HIGH_DPI, true).GetBool(),
+                GetParameter(parameters, EP_VSYNC, false).GetBool(),
+                GetParameter(parameters, EP_TRIPLE_BUFFER, false).GetBool(),
+                GetParameter(parameters, EP_MULTI_SAMPLE, 1).GetInt(),
+                GetParameter(parameters, EP_MONITOR, 0).GetInt(),
+                GetParameter(parameters, EP_REFRESH_RATE, 0).GetInt()
+        ))
+            return false;
+
+        // Initialize input
+        if (HasParameter(parameters, EP_TOUCH_EMULATION))
+            GetSubsystem<Input>()->SetTouchEmulation(GetParameter(parameters, EP_TOUCH_EMULATION).GetBool());
+    }
 
     MY3D_LOGINFO("Initialized engine");
     initialized_ = true;
@@ -60,7 +121,7 @@ void Engine::RunFrame()
     if (exiting_)
         return;
 
-    auto* time = GetSubSystem<Time>();
+    auto* time = GetSubsystem<Time>();
     time->BeginFrame(timeStep_);
 
     Update();

@@ -12,10 +12,6 @@ endforeach ()
 add_subdirectory(Engine)
 add_subdirectory(Samples)
 
-# Force utf-8 encoding for MSVC
-add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
-add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
-
 # Testing
 if (MY3D_TESTING)
     add_subdirectory(Testing)

@@ -102,9 +102,9 @@ TEST_CASE("string testing", "[engine]")
     REQUIRE(str.Length() == 11);
     REQUIRE(str.LengthUTF8() == 11);
 
-    String wstr(L"你好");
-    REQUIRE(wstr.LengthUTF8() == 2);
+    String wstr(L"你好，中国");
+    REQUIRE(wstr.LengthUTF8() == 5);
 
     WString ws(wstr);
-    REQUIRE(ws.Length() == 2);
+    REQUIRE(ws.Length() == 5);
 }

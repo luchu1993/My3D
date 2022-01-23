@@ -82,7 +82,7 @@ void Object::RemoveEventSender(Object *sender)
     }
 }
 
-Object* Object::GetSubSystem(StringHash type) const
+Object* Object::GetSubsystem(StringHash type) const
 {
     return context_->GetSubsystem(type);
 }

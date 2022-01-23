@@ -8,8 +8,30 @@
 namespace My3D
 {
     GraphicsImpl::GraphicsImpl()
+        : device_(nullptr)
+        , deviceContext_(nullptr)
+        , swapChain_(nullptr)
+        , defaultRenderTargetView_(nullptr)
+        , defaultDepthTexture_(nullptr)
+        , defaultDepthStencilView_(nullptr)
+        , depthStencilView_(nullptr)
+        , resolveTexture_(nullptr)
     {
+        for (unsigned i = 0; i < MAX_RENDERTARGETS; ++i)
+            renderTargetViews_[i] = nullptr;
 
+        for (unsigned i = 0; i < MAX_TEXTURE_UNITS; ++i)
+        {
+            shaderResourceViews_[i] = nullptr;
+            samplers_[i] = nullptr;
+        }
+
+        for (unsigned i = 0; i < MAX_VERTEX_STREAMS; ++i)
+        {
+            vertexBuffers_[i] = nullptr;
+            vertexSizes_[i] = 0;
+            vertexOffsets_[i] = 0;
+        }
     }
 
     bool GraphicsImpl::CheckMultiSampleSupport(DXGI_FORMAT format, unsigned int sampleCount) const

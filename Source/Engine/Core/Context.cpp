@@ -1,3 +1,6 @@
+
+#include "SDL.h"
+
 #include "Context.h"
 #include "IO/Log.h"
 #include "Core/Thread.h"
@@ -78,6 +81,21 @@ namespace My3D
         if (sdlInitCounter == 1)
         {
             MY3D_LOGDEBUG("Initialize SDL");
+            if (SDL_Init(0) != 0)
+            {
+                MY3D_LOGERRORF("Failed to initialise SDL: %s", SDL_GetError());
+                return false;
+            }
+        }
+
+        Uint32 remainingFlags = sdlFlags & ~SDL_WasInit(0);
+        if (remainingFlags != 0)
+        {
+            if (SDL_InitSubSystem(remainingFlags) != 0)
+            {
+                MY3D_LOGERRORF("Failed to initialise SDL subsystem: %s", SDL_GetError());
+                return false;
+            }
         }
 
         return true;
@@ -89,6 +107,8 @@ namespace My3D
         if (sdlInitCounter == 0)
         {
             MY3D_LOGDEBUG("Quitting SDL");
+            SDL_QuitSubSystem(SDL_INIT_EVERYTHING);
+            SDL_Quit();
         }
 
         if (sdlInitCounter < 0)

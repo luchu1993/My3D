@@ -12,7 +12,7 @@ namespace My3D
 {
     VertexBuffer::VertexBuffer(Context *context, bool forceHeadless)
         : Object(context)
-        , GPUObject(forceHeadless ? nullptr : GetSubSystem<Graphics>())
+        , GPUObject(forceHeadless ? nullptr : GetSubsystem<Graphics>())
     {
         UpdateOffsets();
         if (!graphics_)

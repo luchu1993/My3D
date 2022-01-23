@@ -53,8 +53,8 @@ void Graphics::AdjustScreenMode(int& newWidth, int& newHeight, ScreenModeParams&
         }
         else
         {
-            newWidth = 800;
-            newHeight = 600;
+            newWidth = 1334;
+            newHeight = 750;
         }
     }
 
@@ -96,6 +96,63 @@ void Graphics::SetWindowPosition(const IntVector2& position)
 bool Graphics::SetScreenMode(int width, int height)
 {
     return SetScreenMode(width, height, screenParams_);
+}
+
+bool Graphics::SetWindowModes(const WindowModeParams &windowMode, const WindowModeParams &secondaryWindowMode, bool maximize)
+{
+    primaryWindowMode_ = windowMode;
+    secondaryWindowMode_ = secondaryWindowMode;
+    return SetScreenMode(primaryWindowMode_.width_, primaryWindowMode_.height_, primaryWindowMode_.screenParams_, maximize);
+}
+
+bool Graphics::SetDefaultWindowModes(int width, int height, const ScreenModeParams &params)
+{
+    // Fill window mode to be applied now
+    WindowModeParams primaryWindowMode;
+    primaryWindowMode.width_ = width;
+    primaryWindowMode.height_ = height;
+    primaryWindowMode.screenParams_ = params;
+
+    // Fill window mode to be applied on Graphics::ToggleFullscreen
+    WindowModeParams secondaryWindowMode = primaryWindowMode;
+    // Pick resolution automatically
+    secondaryWindowMode.width_ = 0;
+    secondaryWindowMode.height_ = 0;
+
+    if (params.fullscreen_ || params.borderless_)
+    {
+        secondaryWindowMode.screenParams_.fullscreen_ = false;
+        secondaryWindowMode.screenParams_.borderless_ = false;
+    }
+    else
+    {
+        secondaryWindowMode.screenParams_.borderless_ = true;
+    }
+
+    const bool maximize = (!width || !height) && !params.fullscreen_ && !params.borderless_ && params.resizable_;
+    return SetWindowModes(primaryWindowMode, secondaryWindowMode, maximize);
+}
+
+bool Graphics::SetMode(int width, int height, bool fullscreen, bool borderless, bool resizable, bool highDPI,
+                        bool vsync, bool tripleBuffer, int multiSample, int monitor, int refreshRate)
+{
+    ScreenModeParams params;
+    params.fullscreen_ = fullscreen;
+    params.borderless_ = borderless;
+    params.resizable_ = resizable;
+    params.highDPI_ = highDPI;
+    params.vsync_ = vsync;
+    params.tripleBuffer_ = tripleBuffer;
+    params.multiSample_ = multiSample;
+    params.monitor_ = monitor;
+    params.refreshRate_ = refreshRate;
+
+    return SetDefaultWindowModes(width, height, params);
+}
+
+bool Graphics::SetMode(int width, int height)
+{
+    return SetDefaultWindowModes(width, height, screenParams_);
 }
 
 void Graphics::SetWindowPosition(int x, int y)

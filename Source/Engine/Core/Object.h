@@ -141,9 +141,9 @@ public:
     void SetGlobalVar(StringHash key, const Variant& value);
 
     /// Return subsystem by type
-    Object* GetSubSystem(StringHash type) const;
+    Object* GetSubsystem(StringHash type) const;
     /// Template version of returning a subsystem
-    template<typename T> T* GetSubSystem() const;
+    template<typename T> T* GetSubsystem() const;
 
 protected:
     /// Execution context
@@ -165,7 +165,7 @@ private:
 };
 
 template<typename T>
-T* Object::GetSubSystem() const { return static_cast<T*>( GetSubSystem(T::GetTypeStatic()) );}
+T* Object::GetSubsystem() const { return static_cast<T*>( GetSubsystem(T::GetTypeStatic()) );}
 
 /// Base class for object factories
 class MY3D_API ObjectFactory : public RefCounted

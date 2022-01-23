@@ -253,13 +253,13 @@ public:
     /// Assign from a raw pointer
     WeakPtr<T>& operator =(T* ptr)
     {
-        RefCount* refCount = ptr ? ptr_->RefCountPtr() : nullptr;
+        RefCount* refCount = ptr ? ptr->RefCountPtr() : nullptr;
         if (ptr_ == ptr && refCount_ == refCount)
             return *this;
 
         ReleaseRef();
         ptr_ = ptr;
-        refCount = refCount;
+        refCount_ = refCount;
         AddRef();
 
         return *this;

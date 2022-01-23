@@ -33,7 +33,7 @@ static const char* filterModeNames[] =
 
 Texture::Texture(Context *context)
     : ResourceWithMetadata(context)
-    , GPUObject(GetSubSystem<Graphics>())
+    , GPUObject(GetSubsystem<Graphics>())
 {
 }
 

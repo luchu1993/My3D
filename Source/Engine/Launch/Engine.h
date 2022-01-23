@@ -95,6 +95,8 @@ private:
     bool initialized_;
     /// Exiting flag
     bool exiting_;
+    /// Headless mode flag.
+    bool headless_;
 };
 
 }

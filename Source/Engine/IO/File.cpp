@@ -41,6 +41,37 @@ File::File(Context *context)
 {
 }
 
+File::File(Context *context, const String &fileName, FileMode mode)
+    : Object(context)
+    , mode_(FILE_READ)
+    , handle_(nullptr)
+    , readBufferOffset_(0)
+    , readBufferSize_(0)
+    , offset_(0)
+    , checksum_(0)
+    , compressed_(false)
+    , readSyncNeeded_(false)
+    , writeSyncNeeded_(false)
+{
+    Open(fileName, mode);
+}
+
+File::File(Context *context, PackageFile *package, const String &fileName)
+    : Object(context)
+    , mode_(FILE_READ)
+    , handle_(nullptr)
+    , readBufferOffset_(0)
+    , readBufferSize_(0)
+    , offset_(0)
+    , checksum_(0)
+    , compressed_(false)
+    , readSyncNeeded_(false)
+    , writeSyncNeeded_(false)
+{
+    Open(package, fileName);
+}
+
+
 File::~File()
 {
     Close();
@@ -170,7 +201,7 @@ bool File::OpenInternal(const String &fileName, FileMode mode, bool fromPackage)
     readSyncNeeded_ = false;
     writeSyncNeeded_ = false;
 
-    auto* fileSystem = GetSubSystem<FileSystem>();
+    auto* fileSystem = GetSubsystem<FileSystem>();
     if (fileSystem && !fileSystem->CheckAccess(GetPath(fileName)))
     {
         MY3D_LOGERRORF("Access denied to %s", fileName.CString());

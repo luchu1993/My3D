@@ -6,6 +6,7 @@
 #include "SDL_syswm.h"
 
 #include "Core/Context.h"
+#include "Graphics/GraphicsEvents.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsImpl.h"
 #include "Graphics/VertexBuffer.h"
@@ -33,13 +34,33 @@ namespace My3D
         , apiName_("D3D11")
     {
 
+        SetTextureUnitMappings();
+        ResetCachedState();
+
         context_->RequireSDL(SDL_INIT_VIDEO);
+
         // Register Graphics library object factories
         RegisterGraphicsLibrary(context_);
     }
 
     Graphics::~Graphics()
     {
+        {
+            MutexLock lock(gpuObjectMutex_);
+            for (auto const& gpuObject : gpuObjects_)
+                gpuObject->Release();
+
+            gpuObjects_.Clear();
+        }
+
+        MY3D_SAFE_RELEASE(impl_->defaultRenderTargetView_);
+        MY3D_SAFE_RELEASE(impl_->defaultDepthStencilView_);
+        MY3D_SAFE_RELEASE(impl_->defaultDepthTexture_);
+        MY3D_SAFE_RELEASE(impl_->resolveTexture_);
+        MY3D_SAFE_RELEASE(impl_->swapChain_);
+        MY3D_SAFE_RELEASE(impl_->deviceContext_);
+        MY3D_SAFE_RELEASE(impl_->device_);
+
         if (window_)
         {
             SDL_ShowCursor(SDL_TRUE);
@@ -51,6 +72,46 @@ namespace My3D
         impl_ = nullptr;
 
         context_->ReleaseSDL();
+    }
+
+    bool Graphics::SetScreenMode(int width, int height, const ScreenModeParams& params, bool maximize)
+    {
+        // Ensure that parameters are properly filled.
+        ScreenModeParams newParams = params;
+        AdjustScreenMode(width, height, newParams, maximize);
+
+        if (width == width_ && height == height_ && newParams == screenParams_)
+            return true;
+
+        SDL_SetHint(SDL_HINT_ORIENTATIONS, orientations_.CString());
+
+        if (!window_)
+        {
+            if (!OpenWindow(width, height, newParams.resizable_, newParams.borderless_))
+                return false;
+        }
+
+        AdjustWindow(width, height, newParams.fullscreen_, newParams.borderless_, newParams.monitor_);
+
+        if (maximize)
+        {
+            Maximize();
+            SDL_GetWindowSize(window_, &width, &height);
+        }
+
+        const int oldMultiSample = screenParams_.multiSample_;
+        screenParams_ = newParams;
+
+        if (!impl_->device_ || screenParams_.multiSample_ != oldMultiSample)
+            CreateDevice(width, height);
+        UpdateSwapChain(width, height);
+
+        // Clear the initial window contents to black
+        Clear(CLEAR_COLOR);
+        impl_->swapChain_->Present(0, 0);
+
+        OnScreenModeChanged();
+        return true;
     }
 
     IntVector2 Graphics::GetRenderTargetDimensions() const
@@ -155,50 +216,6 @@ namespace My3D
         }
     }
 
-    bool Graphics::SetScreenMode(int width, int height, const ScreenModeParams& params, bool maximize)
-    {
-        // Ensure that parameters are properly filled.
-        ScreenModeParams newParams = params;
-        AdjustScreenMode(width, height, newParams, maximize);
-
-        // Find out the full screen mode display format (match desktop color depth)
-        SDL_DisplayMode mode;
-        SDL_GetDesktopDisplayMode(newParams.monitor_, &mode);
-        const DXGI_FORMAT fullscreenFormat = SDL_BITSPERPIXEL(mode.format) == 16 ? DXGI_FORMAT_B5G6R5_UNORM : DXGI_FORMAT_B8G8R8A8_UNORM;
-
-        if (width == width_ && height == height_ && newParams == screenParams_)
-            return true;
-
-        SDL_SetHint(SDL_HINT_ORIENTATIONS, orientations_.CString());
-        if (!window_)
-        {
-            if (!OpenWindow(width, height, newParams.resizable_, newParams.borderless_))
-                return false;
-        }
-
-        AdjustWindow(width, height, newParams.fullscreen_, newParams.borderless_, newParams.monitor_);
-
-        if (maximize)
-        {
-            Maximize();
-            SDL_GetWindowSize(window_, &width, &height);
-        }
-
-        const int oldMultiSample = screenParams_.multiSample_;
-        screenParams_ = newParams;
-
-        if (!impl_->device_ || screenParams_.multiSample_ != oldMultiSample)
-            CreateDevice(width, height);
-        UpdateSwapChain(width, height);
-
-        // Clear the initial window contents to black
-        Clear(CLEAR_COLOR);
-        impl_->swapChain_->Present(0, 0);
-
-        OnScreenModeChanged();
-        return true;
-    }
-
     bool Graphics::OpenWindow(int width, int height, bool resizable, bool borderless)
     {
         unsigned flags = 0;
@@ -223,7 +240,57 @@ namespace My3D
     {
         if (!externalWindow_)
         {
+            // Keep current window position because it may change in intermediate callbacks
+            const IntVector2 oldPosition = position_;
+            bool reposition = false;
+            bool resizePostponed = false;
+            if (!newWidth || !newHeight)
+            {
+                SDL_MaximizeWindow(window_);
+                SDL_GetWindowSize(window_, &newWidth, &newHeight);
+            }
+            else
+            {
+                SDL_Rect display_rect;
+                SDL_GetDisplayBounds(monitor, &display_rect);
 
+                reposition = newFullscreen || (newBorderless && newWidth >= display_rect.w && newHeight >= display_rect.h);
+                if (reposition)
+                {
+                    // Reposition the window on the specified monitor if it's supposed to cover the entire monitor
+                    SDL_SetWindowPosition(window_, display_rect.x, display_rect.y);
+                }
+
+                // Postpone window resize if exiting fullscreen to avoid redundant resolution change
+                if (!newFullscreen && screenParams_.fullscreen_)
+                    resizePostponed = true;
+                else
+                    SDL_SetWindowSize(window_, newWidth, newHeight);
+            }
+
+            // Turn off window fullscreen mode so it gets repositioned to the correct monitor
+            SDL_SetWindowFullscreen(window_, SDL_FALSE);
+            // Hack fix: on SDL 2.0.4 a fullscreen->windowed transition results in a maximized window when the D3D device is reset, so hide before
+            if (!newFullscreen) SDL_HideWindow(window_);
+            SDL_SetWindowFullscreen(window_, newFullscreen ? SDL_WINDOW_FULLSCREEN : 0);
+            SDL_SetWindowBordered(window_, newBorderless ? SDL_FALSE : SDL_TRUE);
+            if (!newFullscreen) SDL_ShowWindow(window_);
+
+            // Resize now if was postponed
+            if (resizePostponed)
+                SDL_SetWindowSize(window_, newWidth, newHeight);
+
+            // Ensure that window keeps its position
+            if (!reposition)
+                SDL_SetWindowPosition(window_, oldPosition.x_, oldPosition.y_);
+            else
+                position_ = oldPosition;
+        }
+        else
+        {
+            // If external window, must ask its dimensions instead of trying to set them
+            SDL_GetWindowSize(window_, &newWidth, &newHeight);
+            newFullscreen = false;
         }
     }
 
@@ -378,7 +445,7 @@ namespace My3D
             impl_->defaultDepthTexture_ = nullptr;
         }
 
-        impl_->depthStencilView = nullptr;
+        impl_->depthStencilView_ = nullptr;
         for (unsigned i = 0; i < MAX_RENDERTARGETS; ++i)
             impl_->renderTargetViews_[i] = nullptr;
         impl_->renderTargetsDirty_ = true;
@@ -456,6 +523,60 @@ namespace My3D
 
     }
 
+    void Graphics::OnWindowResized()
+    {
+        if (!impl_->device_ || !window_)
+            return;
+
+        int newWidth, newHeight;
+
+        SDL_GetWindowSize(window_, &newWidth, &newHeight);
+        if (newWidth == width_ && newHeight == height_)
+            return;
+
+        UpdateSwapChain(newWidth, newHeight);
+
+        // Reset rendertargets and viewport for the new screen size
+        ResetRenderTargets();
+
+        MY3D_LOGDEBUGF("Window was resized to %dx%d", width_, height_);
+
+        using namespace ScreenMode;
+
+        VariantMap& eventData = GetEventDataMap();
+        eventData[P_WIDTH] = width_;
+        eventData[P_HEIGHT] = height_;
+        eventData[P_FULLSCREEN] = screenParams_.fullscreen_;
+        eventData[P_RESIZABLE] = screenParams_.resizable_;
+        eventData[P_BORDERLESS] = screenParams_.borderless_;
+        eventData[P_HIGHDPI] = screenParams_.highDPI_;
+        SendEvent(E_SCREENMODE, eventData);
+    }
+
+    void Graphics::OnWindowMoved()
+    {
+        if (!impl_->device_ || !window_ || screenParams_.fullscreen_)
+            return;
+
+        int newX, newY;
+
+        SDL_GetWindowPosition(window_, &newX, &newY);
+        if (newX == position_.x_ && newY == position_.y_)
+            return;
+
+        position_.x_ = newX;
+        position_.y_ = newY;
+
+        MY3D_LOGTRACEF("Window was moved to %d,%d", position_.x_, position_.y_);
+
+        using namespace WindowPos;
+
+        VariantMap& eventData = GetEventDataMap();
+        eventData[P_X] = position_.x_;
+        eventData[P_Y] = position_.y_;
+        SendEvent(E_WINDOWPOS, eventData);
+    }
+
     void Graphics::SetFlushGPU(bool enable)
     {
         flushGPU_ = enable;
@@ -490,7 +611,66 @@ namespace My3D
 
     void Graphics::CheckFeatureSupport()
     {
+        anisotropySupport_ = true;
+        dxtTextureSupport_ = true;
+        lightPrepassSupport_ = true;
+        deferredSupport_ = true;
+        hardwareShadowSupport_ = true;
+        instancingSupport_ = true;
+        shadowMapFormat_ = DXGI_FORMAT_R16_TYPELESS;
+        hiresShadowMapFormat_ = DXGI_FORMAT_R32_TYPELESS;
+        dummyColorFormat_ = DXGI_FORMAT_UNKNOWN;
+        sRGBSupport_ = true;
+        sRGBWriteSupport_ = true;
+    }
 
+    void Graphics::ResetCachedState()
+    {
+        for (unsigned i = 0; i < MAX_VERTEX_STREAMS; ++i)
+        {
+            vertexBuffers_[i] = nullptr;
+            impl_->vertexBuffers_[i] = nullptr;
+            impl_->vertexSizes_[i] = 0;
+            impl_->vertexOffsets_[i] = 0;
+        }
+
+        for (unsigned i = 0; i < MAX_TEXTURE_UNITS; ++i)
+        {
+            textures_[i] = nullptr;
+            impl_->shaderResourceViews_[i] = nullptr;
+            impl_->samplers_[i] = nullptr;
+        }
+
+        for (unsigned i = 0; i < MAX_RENDERTARGETS; ++i)
+        {
+            renderTargets_[i] = nullptr;
+            impl_->renderTargetViews_[i] = nullptr;
+        }
+
+        depthStencil_ = nullptr;
+        impl_->depthStencilView_ = nullptr;
+        viewport_ = IntRect(0, 0, width_, height_);
+
+    }
+
+    void Graphics::SetTextureUnitMappings()
+    {
+        textureUnits_["DiffMap"] = TU_DIFFUSE;
+        textureUnits_["DiffCubeMap"] = TU_DIFFUSE;
+        textureUnits_["NormalMap"] = TU_NORMAL;
+        textureUnits_["SpecMap"] = TU_SPECULAR;
+        textureUnits_["EmissiveMap"] = TU_EMISSIVE;
+        textureUnits_["EnvMap"] = TU_ENVIRONMENT;
+        textureUnits_["EnvCubeMap"] = TU_ENVIRONMENT;
+        textureUnits_["LightRampMap"] = TU_LIGHTRAMP;
+        textureUnits_["LightSpotMap"] = TU_LIGHTSHAPE;
+        textureUnits_["LightCubeMap"] = TU_LIGHTSHAPE;
+        textureUnits_["ShadowMap"] = TU_SHADOWMAP;
+        textureUnits_["FaceSelectCubeMap"] = TU_FACESELECT;
+        textureUnits_["IndirectionCubeMap"] = TU_INDIRECTION;
+        textureUnits_["VolumeMap"] = TU_VOLUMEMAP;
+        textureUnits_["ZoneCubeMap"] = TU_ZONE;
+        textureUnits_["ZoneVolumeMap"] = TU_ZONE;
     }
 
     bool Graphics::IsInitialized() const

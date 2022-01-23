@@ -86,7 +86,7 @@ public:
     /// Return subsystem by type
     Object* GetSubsystem(StringHash type) const;
     /// Template version of return a subsystem
-    template<typename T> T* GetSubSystem() const;
+    template<typename T> T* GetSubsystem() const;
     /// Return global variable based on key.
 
     const Variant& GetGlobalVar(StringHash key) const;
@@ -180,7 +180,7 @@ template <typename T> void Context::RemoveSubsystem()
     RemoveSubsystem(T::GetTypeStatic());
 }
 
-template <typename T> T* Context::GetSubSystem() const
+template <typename T> T* Context::GetSubsystem() const
 {
     return static_cast<T*>(GetSubsystem(T::GetTypeStatic()));
 }

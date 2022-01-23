@@ -47,7 +47,7 @@ namespace My3D
         /// Current color render target views
         ID3D11RenderTargetView* renderTargetViews_[MAX_RENDERTARGETS];
         /// Current depth-stencil view
-        ID3D11DepthStencilView* depthStencilView;
+        ID3D11DepthStencilView* depthStencilView_;
         /// Created blend state objects
         HashMap<unsigned, ID3D11BlendState*> blendStates_;
         /// Created depth state objects

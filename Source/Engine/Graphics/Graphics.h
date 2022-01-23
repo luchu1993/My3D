@@ -14,6 +14,8 @@ struct SDL_Window;
 
 namespace My3D
 {
+    class File;
+    class Texture;
     class GraphicsImpl;
     class RenderSurface;
     class GPUObject;
@@ -113,6 +115,17 @@ namespace My3D
         bool SetScreenMode(int width, int height, const ScreenModeParams& params, bool maximize = false);
         /// Set screen mode
         bool SetScreenMode(int width, int height);
+        /// Set window modes to be rotated by ToggleFullscreen. Apply primary window settings immeditally.
+        /// Window may be maximized if requested and possible. Return true if successful.
+        bool SetWindowModes(const WindowModeParams& windowMode, const WindowModeParams& secondaryWindowMode, bool maximize = false);
+        /// Set default window modes. Return true if successful.
+        bool SetDefaultWindowModes(int width, int height, const ScreenModeParams& params);
+        /// Set default window modes. Deprecated. Return true if successful.
+        bool SetMode(int width, int height, bool fullscreen, bool borderless, bool resizable, bool highDPI, bool vsync, bool tripleBuffer, int multiSample, int monitor, int refreshRate);
+        /// Set screen resolution only. Deprecated. Return true if successful.
+        bool SetMode(int width, int height);
+        /// Set whether the main window uses sRGB conversion on write.
+        void SetSRGB(bool enable);
         /// Set whether to flush the GPU command buffer to prevent multiple frames being queued and uneven frame timesteps. Default off, may decrease performance if enabled. Not currently implemented on OpenGL.
         void SetFlushGPU(bool enable);
         /// Toggle between full screen and windowed mode.
@@ -138,6 +151,10 @@ namespace My3D
         void ResetRenderTargets();
         /// Reset specific rendertarget.
         void ResetRenderTarget(unsigned index);
+        /// Window was resized through user interaction. Called by Input subsystem.
+        void OnWindowResized();
+        /// Window was moved through user interaction. Called by Input subsystem.
+        void OnWindowMoved();
         /// Maximize the window.
         void Maximize();
         /// Minimize the window.
@@ -237,6 +254,10 @@ namespace My3D
         bool UpdateSwapChain(int width, int height);
         /// Check supported rendering features.
         void CheckFeatureSupport();
+        /// Reset cached rendering state.
+        void ResetCachedState();
+        /// Initialize texture unit mappings.
+        void SetTextureUnitMappings();
 
         /// Mutex for accessing the GPU objects vector from several threads.
         Mutex gpuObjectMutex_;
@@ -264,12 +285,34 @@ namespace My3D
         bool flushGPU_{};
         /// sRGB conversion on write flag for teh main window
         bool sRGB_{};
+        /// Light pre-pass rendering support flag.
+        bool lightPrepassSupport_{};
+        /// Deferred rendering support flag.
+        bool deferredSupport_{};
+        /// Anisotropic filtering support flag.
+        bool anisotropySupport_{};
+        /// DXT format support flag.
+        bool dxtTextureSupport_{};
+        /// ETC1 format support flag.
+        bool etcTextureSupport_{};
+        /// ETC2 format support flag.
+        bool etc2TextureSupport_{};
+        /// PVRTC formats support flag.
+        bool pvrtcTextureSupport_{};
+        /// Hardware shadow map depth compare support flag.
+        bool hardwareShadowSupport_{};
         /// Instancing support flag.
         bool instancingSupport_{};
         /// sRGB conversion on read support flag.
         bool sRGBSupport_{};
         /// sRGB conversion on write support flag.
         bool sRGBWriteSupport_{};
+        /// Shadow map dummy color texture format.
+        unsigned dummyColorFormat_{};
+        /// Shadow map depth texture format.
+        unsigned shadowMapFormat_{};
+        /// Shadow map 24-bit depth texture format.
+        unsigned hiresShadowMapFormat_{};
         /// Vertex buffers in use.
         VertexBuffer* vertexBuffers_[MAX_VERTEX_STREAMS]{};
         /// Index buffer in use.
@@ -282,12 +325,18 @@ namespace My3D
         RenderSurface* renderTargets_[MAX_RENDERTARGETS]{};
         /// Depth-stencil surface in use.
         RenderSurface* depthStencil_{};
+        /// Viewport coordinates.
+        IntRect viewport_;
         /// Largest scratch buffer request this frame.
         unsigned maxScratchBufferRequest_{};
         /// GPU objects.
         PODVector<GPUObject*> gpuObjects_;
         /// Scratch buffers.
         Vector<ScratchBuffer> scratchBuffers_;
+        /// Textures in use.
+        Texture* textures_[MAX_TEXTURE_UNITS]{};
+        /// Texture unit mappings.
+        HashMap<String, TextureUnit> textureUnits_;
     };
 
     /// Register Graphics library objects

@@ -1,3 +1,39 @@
+# Platform and compiler specific options
+set (CMAKE_CXX_STANDARD 11)
+set (CMAKE_CXX_STANDARD_REQUIRED ON)
+set (CMAKE_CXX_EXTENSIONS OFF)
+
+if (MSVC)
+    add_definitions (-D_CRT_SECURE_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP /utf-8")
+    set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${DEBUG_RUNTIME}")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELEASE} ${RELEASE_RUNTIME} /fp:fast /Zi /GS-")
+    set (CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELWITHDEBINFO})
+
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /utf-8")
+    set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${DEBUG_RUNTIME}")
+    set (CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} ${RELEASE_RUNTIME} /fp:fast /Zi /GS- /D _SECURE_SCL=0")
+    set (CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    set (CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /OPT:REF /OPT:ICF /DEBUG")
+    set (CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /OPT:REF /OPT:ICF")
+endif()
+
+# DirectX
+if (WIN32)
+    set (DIRECTX_REQUIRED_COMPONENTS)
+    set (DIRECTX_OPTIONAL_COMPONENTS DInput DSound XInput)
+    if (NOT MY3D_OPENGL)
+        list (APPEND DIRECTX_REQUIRED_COMPONENTS D3D11)
+    endif()
+    find_package (DirectX REQUIRED ${DIRECTX_REQUIRED_COMPONENTS} OPTIONAL_COMPONENTS ${DIRECTX_OPTIONAL_COMPONENTS})
+
+    if (DIRECTX_FOUND)
+        include_directories (SYSTEM ${DIRECTX_INCLUDE_DIRS})   # These variables may be empty when WinSDK or MinGW is being used
+        link_directories (${DIRECTX_LIBRARY_DIRS})
+    endif ()
+
+endif()
+
 
 # platform predefine macros
 function (define_platform_config)
@@ -10,7 +46,25 @@ function (define_platform_config)
     endif()
 endfunction()
 
-#  macro for setting up a library target
+macro (define_dependency_libs TARGET)
+    if (${TARGET} MATCHES SDL2|Engine)
+        if (WIN32)
+            list (APPEND LIBS user32 gdi32 winmm imm32 ole32 oleaut32 setupapi version uuid)
+        endif()
+    endif()
+
+    if (MY3D_OPENGL)
+        if (WIN32)
+            list (APPEND LIBS opengl32)
+        else()
+            list (APPEND LIBS GL)
+        endif()
+    elseif (DIRECT3D_LIBRARIES)
+        list (APPEND LIBS ${DIRECT3D_LIBRARIES})
+    endif()
+endmacro()
+
+# macro for setting up a library target
 macro(setup_library)
     cmake_parse_arguments(ARGS "" "" "" ${ARGN})
     check_source_file()
@@ -89,6 +143,7 @@ macro(_setup_target)
     # include directories
     target_include_directories(${TARGET_NAME} PUBLIC ${INCLUDE_DIRS})
     # link libraries
+    define_dependency_libs(${TARGET_NAME})
     target_link_libraries(${TARGET_NAME} ${ABSOLUTE_PATH_LIBS} ${LIBS})
 
 endmacro()
