@@ -204,7 +204,7 @@ namespace My3D
 
     void WorkQueue::Resume()
     {
-        if (!paused_)
+        if (paused_)
         {
             queueMutex_.Release();
             paused_ = false;

@@ -35,5 +35,8 @@ namespace My3D
 
     // Input
     static const String EP_TOUCH_EMULATION = "TouchEmulation";
+
+    // Frame Limit
+    static const String EP_FRAME_LIMITER = "FrameLimiter";
 }
 

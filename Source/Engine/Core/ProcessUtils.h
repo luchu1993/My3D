@@ -39,4 +39,8 @@ MY3D_API const Vector<String>& GetArguments();
 
 /// Return the runtime platform identifier, or (?) if not identified.
 MY3D_API String GetPlatform();
+/// Return the number of physical CPU cores.
+MY3D_API unsigned GetNumPhysicalCPUs();
+/// Return the number of logical CPUs (different from physical if hyperthreading is used).
+MY3D_API unsigned GetNumLogicalCPUs();
 }

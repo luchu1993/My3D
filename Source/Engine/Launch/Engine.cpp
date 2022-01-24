@@ -13,6 +13,8 @@
 #include "Graphics/Graphics.h"
 #include "IO/FileSystem.h"
 #include "Input/Input.h"
+#include "Core/ProcessUtils.h"
+#include "Core/WorkQueue.h"
 
 
 #include <cassert>
@@ -40,8 +42,9 @@ Engine::Engine(Context *context)
     context_->RegisterSubsystem<Log>();
 #endif
     context_->RegisterSubsystem<Time>();
-    context_->RegisterSubsystem<FileSystem>();
+    context_->RegisterSubsystem<WorkQueue>();
     context_->RegisterSubsystem<Input>();
+    context_->RegisterSubsystem<FileSystem>();
 
     SubscribeToEvent(E_EXITREQUESTED, MY3D_HANDLER(Engine, HandleExitRequested));
 }
@@ -69,7 +72,18 @@ bool Engine::Initialize(const VariantMap& parameters)
     }
 
     GetSubsystem<Time>()->SetTimerPeriod(1);
-    frameTimer_.Reset();
+
+    // Configure max FPS
+    if (!GetParameter(parameters, EP_FRAME_LIMITER, false).GetBool())
+        SetMaxFps(0);
+
+    // Set amount of worker threads according to the available physical CPU cores.
+    unsigned numThreads = GetNumPhysicalCPUs() - 1;
+    if (numThreads)
+    {
+        GetSubsystem<WorkQueue>()->CreateThreads(numThreads);
+        MY3D_LOGINFOF("Created %u worker thread%s", numThreads, numThreads > 1 ? "s" : "");
+    }
 
     auto* fileSystem = GetSubsystem<FileSystem>();
 
@@ -108,6 +122,8 @@ bool Engine::Initialize(const VariantMap& parameters)
         if (HasParameter(parameters, EP_TOUCH_EMULATION))
             GetSubsystem<Input>()->SetTouchEmulation(GetParameter(parameters, EP_TOUCH_EMULATION).GetBool());
     }
+
+    frameTimer_.Reset();
 
     MY3D_LOGINFO("Initialized engine");
     initialized_ = true;
