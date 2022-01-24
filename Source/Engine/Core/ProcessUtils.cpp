@@ -2,6 +2,7 @@
 // Created by luchu on 2022/1/8.
 //
 
+#include "SDL.h"
 #include "Core/ProcessUtils.h"
 
 #include <cstdio>
@@ -21,12 +22,14 @@ static Vector<String> arguments;
 
 void ErrorDialog(const String& title, const String& message)
 {
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title.CString(), message.CString(), nullptr);
 }
 
 void ErrorExit(const String& message, int exitCode)
 {
     if (message.Empty())
         PrintLine(message, true);
+
     exit(exitCode);
 }
 
@@ -41,15 +44,32 @@ void OpenConsoleWindow()
     freopen("CONOUT$", "w", stdout);
 
     consoleOpened = true;
-
 #endif
 }
 
 void PrintUnicode(const String& str, bool error)
 {
+#ifdef _WIN32
+    // If the output stream has been redirected, use fprintf instead of WriteConsoleW,
+    // though it means that proper Unicode output will not work
     FILE* out = error ? stderr : stdout;
-    fprintf(out, "%s", str.CString());
-    fflush(out);
+    if (!_isatty(_fileno(out)))
+    {
+        fprintf(out, "%s", str.CString());
+        fflush(out);
+    }
+    else
+    {
+        HANDLE stream = GetStdHandle(error ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
+        if (stream == INVALID_HANDLE_VALUE)
+            return;
+        WString strW(str);
+        DWORD charsWritten;
+        WriteConsoleW(stream, strW.CString(), strW.Length(), &charsWritten, nullptr);
+    }
+#else
+    fprintf(error ? stderr : stdout, "%s", str.CString());
+#endif
 }
 
 void PrintUnicodeLine(const String& str, bool error)
@@ -72,7 +92,7 @@ const Vector<String>& GetArguments()
     return arguments;
 }
 
-const Vector<String>& ParseArguments(const String& cmdLine, bool skipFirstArgment)
+const Vector<String>& ParseArguments(const String& cmdLine, bool skipFirstArgument)
 {
     arguments.Clear();
     unsigned cmdStart = 0, cmdEnd = 0;
@@ -89,9 +109,9 @@ const Vector<String>& ParseArguments(const String& cmdLine, bool skipFirstArgmen
             {
                 inCmd = false;
                 cmdEnd = i;
-                if (!skipFirstArgment)
+                if (!skipFirstArgument)
                     arguments.Push(cmdLine.Substring(cmdStart, cmdEnd - cmdStart));
-                skipFirstArgment = false;
+                skipFirstArgument = false;
             }
         }
         else 
@@ -107,7 +127,7 @@ const Vector<String>& ParseArguments(const String& cmdLine, bool skipFirstArgmen
     if (inCmd)
     {
         cmdEnd = cmdLine.Length();
-        if (!skipFirstArgment)
+        if (!skipFirstArgument)
             arguments.Push(cmdLine.Substring(cmdStart, cmdEnd - cmdStart));
     }
 
@@ -139,6 +159,30 @@ const Vector<String>& ParseArguments(int argc, char** argv)
     for (int i = 0; i < argc; ++i)
         cmdLine.AppendWithFormat("\"%s\"", (const char*)argv[i]);
     return ParseArguments(cmdLine);
+}
+
+
+String GetPlatform()
+{
+#if defined(__ANDROID__)
+    return "Android";
+#elif defined(IOS)
+    return "iOS";
+#elif defined(TVOS)
+    return "tvOS";
+#elif defined(__APPLE__)
+    return "macOS";
+#elif defined(_WIN32)
+    return "Windows";
+#elif defined(RPI)
+    return "Raspberry Pi";
+#elif defined(__EMSCRIPTEN__)
+return "Web";
+#elif defined(__linux__)
+return "Linux";
+#else
+return "(?)";
+#endif
 }
 
 }

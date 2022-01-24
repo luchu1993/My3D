@@ -158,7 +158,7 @@ private:
     EventHandler* eventHandler_;
 };
 
-    template<typename T> void Context::RegisterFactory()
+template<typename T> void Context::RegisterFactory()
 {
     RegisterFactory(new ObjectFactoryImpl<T>(this));
 }

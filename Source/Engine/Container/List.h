@@ -411,4 +411,9 @@ template <typename T> class List : public ListBase
         }
     };
 
+template <class T> typename My3D::List<T>::ConstIterator begin(const My3D::List<T>& v) { return v.Begin(); }
+template <class T> typename My3D::List<T>::ConstIterator end(const My3D::List<T>& v) { return v.End(); }
+template <class T> typename My3D::List<T>::Iterator begin(My3D::List<T>& v) { return v.Begin(); }
+template <class T> typename My3D::List<T>::Iterator end(My3D::List<T>& v) { return v.End(); }
+
 }

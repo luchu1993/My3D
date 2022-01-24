@@ -57,14 +57,15 @@ class MY3D_API Log : public Object
     MY3D_OBJECT(Log, Object)
 
 public:
+    /// Construct.
     explicit Log(Context* context);
+    /// Destruct. Close the log file if open.
     ~Log() override;
 
     /// Open the log file.
     void Open(const String& fileName);
     /// Close the log file.
     void Close();
-
     /// Set logging level.
     void SetLevel(int level);
     /// Set whether to timestamp log messages.
@@ -81,8 +82,11 @@ public:
     /// Return whether log is in quiet mode (only errors printed to standard error stream).
     bool IsQuiet() const { return quiet_; }
 
-    static void Write(int level,  const String& message);
+    /// Write to the log. If logging level is higher than the level of the message, the message is ignored.
+    static void Write(int level, const String& message);
+    /// Write formatted message to the log. If logging level is higher than the level of the message, the message is ignored.
     static void WriteFormat(int level, const char* format, ...);
+    /// Write raw output to the log.
     static void WriteRaw(const String& message, bool error = false);
 
 private:

@@ -36,4 +36,7 @@ MY3D_API const Vector<String>& ParseArguments(const wchar_t* cmdLine);
 MY3D_API const Vector<String>& ParseArguments(int argc, char** argv);
 /// Return previously parsed arguments.
 MY3D_API const Vector<String>& GetArguments();
+
+/// Return the runtime platform identifier, or (?) if not identified.
+MY3D_API String GetPlatform();
 }
