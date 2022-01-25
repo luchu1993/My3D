@@ -259,4 +259,109 @@ namespace My3D
     {
         eventSenders_.Pop();
     }
+
+    AttributeHandle Context::RegisterAttribute(StringHash objectType, const AttributeInfo& attr)
+    {
+        // None or pointer types can not be supported
+        if (attr.type_ == VAR_NONE || attr.type_ == VAR_VOIDPTR || attr.type_ == VAR_PTR
+            || attr.type_ == VAR_CUSTOM_HEAP || attr.type_ == VAR_CUSTOM_STACK)
+        {
+            MY3D_LOGWARNING("Attempt to register unsupported attribute type " + Variant::GetTypeName(attr.type_) + " to class " +
+                              GetTypeName(objectType));
+            return AttributeHandle();
+        }
+
+        AttributeHandle handle;
+
+        Vector<AttributeInfo>& objectAttributes = attributes_[objectType];
+        objectAttributes.Push(attr);
+        handle.attributeInfo_ = &objectAttributes.Back();
+
+        if (attr.mode_ & AM_NET)
+        {
+            Vector<AttributeInfo>& objectNetworkAttributes = networkAttributes_[objectType];
+            objectNetworkAttributes.Push(attr);
+            handle.networkAttributeInfo_ = &objectNetworkAttributes.Back();
+        }
+        return handle;
+    }
+
+    void RemoveNamedAttribute(HashMap<StringHash, Vector<AttributeInfo>>& attributes, StringHash objectType, const char* name)
+    {
+        auto it = attributes.Find(objectType);
+        if (it == attributes.End())
+            return;
+
+        Vector<AttributeInfo>& infos = it->second_;
+        for (auto i = infos.Begin(); i != infos.End(); ++i)
+        {
+            if (!i->name_.Compare(name, true))
+            {
+                infos.Erase(i);
+                break;
+            }
+        }
+
+        // If the vector became empty, erase the object type from the map
+        if (infos.Empty())
+            attributes.Erase(it);
+    }
+
+    void Context::RemoveAttribute(StringHash objectType, const char *name)
+    {
+        RemoveNamedAttribute(attributes_, objectType, name);
+        RemoveNamedAttribute(networkAttributes_, objectType, name);
+    }
+
+    void Context::RemoveAllAttributes(StringHash objectType)
+    {
+        attributes_.Erase(objectType);
+        networkAttributes_.Erase(objectType);
+    }
+
+    void Context::UpdateAttributeDefaultValue(StringHash objectType, const char *name, const Variant &defaultValue)
+    {
+        AttributeInfo* info = GetAttribute(objectType, name);
+        if (info)
+            info->defaultValue_ = defaultValue;
+    }
+
+    void Context::CopyBaseAttributes(StringHash baseType, StringHash derivedType)
+    {
+        // Prevent endless loop if mistakenly copying attributes from same class as derived
+        if (baseType == derivedType)
+        {
+            MY3D_LOGWARNING("Attempt to copy base attributes to itself for class " + GetTypeName(baseType));
+            return;
+        }
+
+        const Vector<AttributeInfo>* baseAttributes = GetAttributes(baseType);
+        if (baseAttributes)
+        {
+            for (unsigned i = 0; i < baseAttributes->Size(); ++i)
+            {
+                const AttributeInfo& attr = baseAttributes->At(i);
+                attributes_[derivedType].Push(attr);
+                if (attr.mode_ & AM_NET)
+                    networkAttributes_[derivedType].Push(attr);
+            }
+        }
+    }
+
+    AttributeInfo *Context::GetAttribute(StringHash objectType, const char *name)
+    {
+        auto it = attributes_.Find(objectType);
+        if (it == attributes_.End())
+            return nullptr;
+
+        Vector<AttributeInfo>& infos = it->second_;
+
+        for (auto& info : infos)
+        {
+            if (!info.name_.Compare(name, true))
+                return &info;
+        }
+
+        return nullptr;
+    }
 }

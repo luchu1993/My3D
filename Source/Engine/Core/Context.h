@@ -1,6 +1,6 @@
 #pragma once
 
-#include "My3D.h"
+#include "Core/Attribute.h"
 #include "Core/Object.h"
 #include "Core/Variant.h"
 #include "Core/StringHash.h"
@@ -81,7 +81,7 @@ public:
     void RemoveSubsystem(StringHash objectType);
     /// Template version of registering an subsystem
     template<typename T> T* RegisterSubsystem();
-    /// Template verison of removing a subsystem
+    /// Template version of removing a subsystem
     template<typename T> void RemoveSubsystem();
     /// Return subsystem by type
     Object* GetSubsystem(StringHash type) const;
@@ -120,6 +120,45 @@ public:
         return i != eventReceivers_.End() ? i->second_ : nullptr;
     }
 
+    /// Register object attribute.
+    AttributeHandle RegisterAttribute(StringHash objectType, const AttributeInfo& attr);
+    /// Remove object attribute.
+    void RemoveAttribute(StringHash objectType, const char* name);
+    /// Remove all object attributes.
+    void RemoveAllAttributes(StringHash objectType);
+    /// Update object attribute's default value.
+    void UpdateAttributeDefaultValue(StringHash objectType, const char* name, const Variant& defaultValue);
+    /// Copy base class attributes to derived class.
+    void CopyBaseAttributes(StringHash baseType, StringHash derivedType);
+    /// Return a specific attribute description for an object, or null if not found
+    AttributeInfo* GetAttribute(StringHash objectType, const char* name);
+    /// Return attribute descriptions for an object type, or null if none defined.
+    const Vector<AttributeInfo>* GetAttributes(StringHash type) const
+    {
+        auto it = attributes_.Find(type);
+        return it != attributes_.End() ? &it->second_ : nullptr;
+    }
+    /// Return network replication attribute descriptions for an object type, or null if none defined.
+    const Vector<AttributeInfo>* GetNetworkAttributes(StringHash type) const
+    {
+        auto it = networkAttributes_.Find(type);
+        return it != networkAttributes_.End() ? &it->second_ : nullptr;
+    }
+    /// Return all registered attributes.
+    const HashMap<StringHash, Vector<AttributeInfo> >& GetAllAttributes() const { return attributes_; }
+    /// Template version of registering an object attribute.
+    template <typename T> AttributeHandle RegisterAttribute(const AttributeInfo& attr);
+    /// Template version of removing an object attribute.
+    template <typename T> void RemoveAttribute(const char* name);
+    /// Template version of removing all object attributes.
+    template <typename T> void RemoveAllAttributes();
+    /// Template version of updating an object attribute's default value.
+    template <typename T> void UpdateAttributeDefaultValue(const char* name, const Variant& defaultValue);
+    /// Template version of copying base class attributes to derived class.
+    template <typename T, typename U> void CopyBaseAttributes();
+    /// Template version of returning a specific attribute description
+    template<typename T> AttributeInfo* GetAttribute(const char* name);
+
 private:
     /// Add event receiver
     void AddEventReceiver(Object* receiver, StringHash eventType);
@@ -156,6 +195,11 @@ private:
     PODVector<VariantMap*> eventDataMaps_;
     /// Active event handler.
     EventHandler* eventHandler_;
+
+    /// Attribute descriptions per object type
+    HashMap<StringHash, Vector<AttributeInfo>> attributes_;
+    /// Network replication attribute descriptions per object type
+    HashMap<StringHash, Vector<AttributeInfo>> networkAttributes_;
 };
 
 template<typename T> void Context::RegisterFactory()
@@ -183,6 +227,36 @@ template <typename T> void Context::RemoveSubsystem()
 template <typename T> T* Context::GetSubsystem() const
 {
     return static_cast<T*>(GetSubsystem(T::GetTypeStatic()));
+}
+
+template <typename T> AttributeHandle Context::RegisterAttribute(const AttributeInfo& attr)
+{
+    return RegisterAttribute(T::GetTypeStatic(), attr);
+}
+
+template <typename T> void Context::RemoveAttribute(const char *name)
+{
+    RemoveAttribute(T::GetTypeStatic(), name);
+}
+
+template <typename T> void Context::RemoveAllAttributes()
+{
+    RemoveAllAttributes(T::GetTypeStatic());
+}
+
+template <typename T> AttributeInfo* Context::GetAttribute(const char* name)
+{
+    return GetAttribute(T::GetTypeStatic(), name);
+}
+
+template <typename T> void Context::UpdateAttributeDefaultValue(const char *name, const Variant& defaultValue)
+{
+    UpdateAttributeDefaultValue(T::GetTypeStatic(), name, defaultValue);
+}
+
+template <typename T, typename U> void Context::CopyBaseAttributes()
+{
+    CopyBaseAttributes(T::GetTypeStatic(), U::GetTypeStatic());
 }
 
 }

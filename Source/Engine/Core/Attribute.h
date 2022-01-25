@@ -9,7 +9,6 @@
 #include "Core/Variant.h"
 
 
-
 namespace My3D
 {
     enum AttributeMode
