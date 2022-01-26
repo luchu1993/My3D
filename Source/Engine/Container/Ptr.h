@@ -435,6 +435,18 @@ public:
         Reset(ptr);
         return *this;
     }
+    /// Point to the object.
+    T* operator ->() const
+    {
+        assert(ptr_);
+        return ptr_;
+    }
+    /// Dereference the object.
+    T& operator *() const
+    {
+        assert(ptr_);
+        return *ptr_;
+    }
     /// Test for less than with another unique pointer.
     template <class U>
     bool operator <(const UniquePtr<U>& rhs) const { return ptr_ < rhs.ptr_; }
@@ -445,7 +457,7 @@ public:
     template <class U>
     bool operator !=(const UniquePtr<U>& rhs) const { return ptr_ != rhs.ptr_; }
     /// Cast pointer to bool
-    operator bool() const { return !!ptr_; }
+    operator bool() const { return ptr_ != nullptr; }
     /// Swap with another UniquePtr
     void Swap(UniquePtr& other) { My3D::Swap(ptr_, other.ptr_); }
     /// Detach pointer form UniquePtr without destroying

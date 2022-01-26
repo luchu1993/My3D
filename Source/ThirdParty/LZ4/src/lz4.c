@@ -89,7 +89,7 @@
 /*-************************************
 *  Dependency
 **************************************/
-#include "lz4.h"
+#include "../include/lz4.h"
 /* see also "memory routines" below */
 
 

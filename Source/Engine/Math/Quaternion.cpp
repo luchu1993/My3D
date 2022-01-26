@@ -19,6 +19,12 @@ namespace My3D
 
     void Quaternion::FromAngleAxis(float angle, const Vector3 &axis)
     {
+
+    }
+
+    void Quaternion::FromEulerAngles(float x, float y, float z)
+    {
+
     }
 }
 

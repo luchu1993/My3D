@@ -52,7 +52,7 @@
 /* *************************************
 *  Dependency
 ***************************************/
-#include "lz4hc.h"
+#include "../include/lz4hc.h"
 
 
 /* *************************************
@@ -305,7 +305,7 @@ FORCE_INLINE int LZ4HC_encodeSequence (
     return 0;
 }
 
-#include "lz4opt.h"
+#include "../include/lz4opt.h"
 
 static int LZ4HC_compress_hashChain (
     LZ4HC_CCtx_internal* const ctx,

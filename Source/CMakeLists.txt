@@ -5,7 +5,9 @@ define_platform_config()
 
 
 # Add third party targets
-foreach (TARGET SDL2 LZ4 PugiXML)
+set(THIRD_PARTY_LIBS SDL2 LZ4 PugiXML)
+
+foreach (TARGET ${THIRD_PARTY_LIBS})
     add_subdirectory (ThirdParty/${TARGET})
 endforeach ()
 

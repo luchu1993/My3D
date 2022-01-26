@@ -195,6 +195,28 @@ namespace My3D
         return ret;
     }
 
+    IntRect ToIntRect(const String& source)
+    {
+        return ToIntRect(source.CString());
+    }
+
+    IntRect ToIntRect(const char* source)
+    {
+        IntRect ret(IntRect::ZERO);
+
+        unsigned elements = CountElements(source, ' ');
+        if (elements < 4)
+            return ret;
+
+        auto* ptr = (char*)source;
+        ret.left_ = (int)strtol(ptr, &ptr, 10);
+        ret.top_ = (int)strtol(ptr, &ptr, 10);
+        ret.right_ = (int)strtol(ptr, &ptr, 10);
+        ret.bottom_ = (int)strtol(ptr, &ptr, 10);
+
+        return ret;
+    }
+
     IntVector2 ToIntVector2(const String& source)
     {
         return ToIntVector2(source.CString());
@@ -234,6 +256,41 @@ namespace My3D
         ret.z_ = (int)strtol(ptr, &ptr, 10);
 
         return ret;
+    }
+
+    Quaternion ToQuaternion(const String& source)
+    {
+        return ToQuaternion(source.CString());
+    }
+
+    Quaternion ToQuaternion(const char* source)
+    {
+        unsigned elements = CountElements(source, ' ');
+        auto* ptr = (char*)source;
+
+        if (elements < 3)
+            return Quaternion::IDENTITY;
+        else if (elements < 4)
+        {
+            // 3 coords specified: conversion from Euler angles
+            float x, y, z;
+            x = (float)strtod(ptr, &ptr);
+            y = (float)strtod(ptr, &ptr);
+            z = (float)strtod(ptr, &ptr);
+
+            return Quaternion(x, y, z);
+        }
+        else
+        {
+            // 4 coords specified: full quaternion
+            Quaternion ret;
+            ret.w_ = (float)strtod(ptr, &ptr);
+            ret.x_ = (float)strtod(ptr, &ptr);
+            ret.y_ = (float)strtod(ptr, &ptr);
+            ret.z_ = (float)strtod(ptr, &ptr);
+
+            return ret;
+        }
     }
 
     Rect ToRect(const String& source)

@@ -50,6 +50,21 @@ namespace My3D
         {
             FromAngleAxis(angle, axis);
         }
+        /// Construct from an angle (in degrees, for Urho2D).
+        explicit Quaternion(float angle) noexcept
+        {
+            FromAngleAxis(angle, Vector3::FORWARD);
+        }
+        /// Construct from Euler angles (in degrees). Equivalent to Y*X*Z.
+        Quaternion(float x, float y, float z) noexcept
+        {
+            FromEulerAngles(x, y, z);
+        }
+        /// Construct from Euler angles (in degrees).
+        explicit Quaternion(const Vector3& angles) noexcept
+        {
+            FromEulerAngles(angles.x_, angles.y_, angles.z_);
+        }
         /// Multiply with a scalar
         Quaternion operator*(float rhs) const
         {
