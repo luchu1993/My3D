@@ -66,6 +66,73 @@ namespace My3D
     using StringVector = Vector<String>;
     /// Map of variants
     using VariantMap = HashMap<StringHash, Variant>;
+
+    /// Typed resource reference
+    struct MY3D_API ResourceRef
+    {
+        /// Construct
+        ResourceRef() = default;
+        /// Construct with type only and empty id
+        explicit ResourceRef(StringHash type)
+            : type_(type)
+        {
+        }
+        /// Construct with type and resource name
+        ResourceRef(StringHash type, const String& name)
+            : type_(type)
+            , name_(name)
+        {
+        }
+        /// Construct with type and resource name.
+        ResourceRef(const String& type, const String& name) :
+                type_(type),
+                name_(name)
+        {
+        }
+        /// Construct with type and resource name.
+        ResourceRef(const char* type, const char* name) :
+                type_(type),
+                name_(name)
+        {
+        }
+        /// Construct from another ResourceRef
+        ResourceRef(const ResourceRef& rhs) = default;
+        /// Test for equality with another reference.
+        bool operator ==(const ResourceRef& rhs) const { return type_ == rhs.type_ && name_ == rhs.name_; }
+        /// Test for inequality with another reference.
+        bool operator !=(const ResourceRef& rhs) const { return type_ != rhs.type_ || name_ != rhs.name_; }
+
+        /// Object type
+        StringHash type_;
+        /// Object name
+        String name_;
+    };
+    /// List of typed resource references.
+    struct MY3D_API ResourceRefList
+    {
+        /// Construct.
+        ResourceRefList() = default;
+        /// Construct with type only.
+        explicit ResourceRefList(StringHash type)
+         : type_(type)
+        {
+        }
+        /// Construct with type and id list.
+        ResourceRefList(StringHash type, const StringVector& names)
+            : type_(type)
+            , names_(names)
+        {
+        }
+        /// Object type.
+        StringHash type_;
+        /// List of object names.
+        StringVector names_;
+        /// Test for equality with another reference list.
+        bool operator ==(const ResourceRefList& rhs) const { return type_ == rhs.type_ && names_ == rhs.names_; }
+        /// Test for inequality with another reference list.
+        bool operator !=(const ResourceRefList& rhs) const { return type_ != rhs.type_ || names_ != rhs.names_; }
+    };
+
     /// Size of variant value. 16 bytes on 32-bit platform, 32 bytes on 64-bit platform.
     static const unsigned VARIANT_VALUE_SIZE = sizeof(void*) * 4;
     /// Union for the possible variant values. Objects exceeding the VARIANT_VALUE_SIZE are allocated on the heap.
