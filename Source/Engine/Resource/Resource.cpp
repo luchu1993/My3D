@@ -31,7 +31,7 @@ namespace My3D
         return success;
     }
 
-    bool Resource::BeginLoad(Deserializer &source)
+    bool Resource::BeginLoad(Deserializer& source)
     {
         // This always needs to be overridden by subclasses
         return false;

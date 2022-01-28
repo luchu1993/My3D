@@ -82,7 +82,7 @@ public:
     T& operator*() const
     {
         assert(ptr_ != nullptr);
-        return ptr_;
+        return *ptr_;
     }
     /// Subscript the object if applicable
     T& operator[](int index)

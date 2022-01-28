@@ -100,6 +100,8 @@ MY3D_API String GetPath(const String& fullPath);
 MY3D_API String GetFileName(const String& fullPath);
 /// Return the extension from a full path, converted to lowercase by default.
 MY3D_API String GetExtension(const String& fullPath, bool lowercaseExtension = true);
+/// Return the filename and extension from a full path. The case of the extension is preserved by default, so that the file can be opened in case-sensitive operating systems.
+MY3D_API String GetFileNameAndExtension(const String& fileName, bool lowercaseExtension = false);
 /// Add a slash at the end of the path if missing and convert to internal format (use slashes).
 MY3D_API String AddTrailingSlash(const String& pathName);
 /// Remove the slash from the end of a path if exists and convert to internal format (use slashes).

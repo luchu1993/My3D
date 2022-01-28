@@ -70,10 +70,28 @@ namespace My3D
         explicit ResourceCache(Context* context);
         /// Destruct. Free all resources.
         ~ResourceCache() override;
+        /// Add a manually created resource. Must be uniquely named within its type.
+        bool AddManualResource(Resource* resource);
+        /// Open and return a file from the resource load paths or from inside a package file. If not found, use a fallback search with absolute path. Return null if fails. Can be called from outside the main thread.
+        SharedPtr<File> GetFile(const String& name, bool sendEventOnFailure = true);
+        /// Remove unsupported constructs from the resource name to prevent ambiguity, and normalize absolute filename to resource path relative if possible.
+        String SanitateResourceName(const String& name) const;
+        /// Return whether automatic resource reloading is enabled.
+        bool GetAutoReloadResources() const { return autoReloadResources_; }
+        /// Return whether resources that failed to load are returned.
+        bool GetReturnFailedResources() const { return returnFailedResources_; }
+        /// Return whether when getting resources should check package files or directories first.
+        bool GetSearchPackagesFirst() const { return searchPackagesFirst_; }
 
     private:
+        /// Update a resource group. Recalculate memory use and release resources if over memory budget.
+        void UpdateResourceGroup(StringHash type);
         /// Handle begin frame event. Automatic resource reloads and the finalization of background loaded resources are processed here.
         void HandleBeginFrame(StringHash eventType, VariantMap& eventData);
+        /// Search FileSystem for file.
+        File* SearchResourceDirs(const String& name);
+        /// Search resource packages for file.
+        File* SearchPackages(const String& name);
 
         /// Mutex for thread-safe access to the resource directories, resource packages and resource dependencies.
         mutable Mutex resourceMutex_;
@@ -81,12 +99,22 @@ namespace My3D
         HashMap<StringHash, ResourceGroup> resourceGroups_;
         /// Resource load directories.
         Vector<String> resourceDirs_;
+        /// Package files.
+        Vector<SharedPtr<PackageFile> > packages_;
         /// Dependent resources. Only used with automatic reload to eg. trigger reload of a cube texture when any of its faces change.
         HashMap<StringHash, HashSet<StringHash> > dependentResources_;
         /// Resource background loader.
         SharedPtr<BackgroundLoader> backgroundLoader_;
         /// Resource routers.
         Vector<SharedPtr<ResourceRouter> > resourceRouters_;
+        /// Automatic resource reloading flag.
+        bool autoReloadResources_;
+        /// Return failed resources flag.
+        bool returnFailedResources_;
+        /// Search priority flag.
+        bool searchPackagesFirst_;
+        /// Resource routing flag to prevent endless recursion.
+        mutable bool isRouting_;
     };
 
     /// Register Resource library subsystems and objects.
