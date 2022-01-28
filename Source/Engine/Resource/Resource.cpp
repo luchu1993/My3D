@@ -5,6 +5,7 @@
 #include "Resource/Resource.h"
 #include "IO/Log.h"
 #include "IO/File.h"
+#include "Resource/XMLElement.h"
 #include "Core/Thread.h"
 
 
@@ -93,4 +94,56 @@ namespace My3D
         return file.Open(fileName, FILE_WRITE) && Save(file);
     }
 
+    void ResourceWithMetadata::AddMetadata(const String &name, const Variant &value)
+    {
+        bool exists;
+        metadata_.Insert(MakePair(StringHash(name), value), exists);
+        if (!exists)
+            metadataKeys_.Push(name);
+    }
+
+    void ResourceWithMetadata::RemoveMetadata(const String& name)
+    {
+        metadata_.Erase(name);
+        metadataKeys_.Remove(name);
+    }
+
+    void ResourceWithMetadata::RemoveAllMetadata()
+    {
+        metadata_.Clear();
+        metadataKeys_.Clear();
+    }
+
+    const Variant& ResourceWithMetadata::GetMetadata(const String& name) const
+    {
+        const Variant* value = metadata_[name];
+        return value ? *value : Variant::EMPTY;
+    }
+
+    bool ResourceWithMetadata::HasMetadata() const
+    {
+        return !metadata_.Empty();
+    }
+
+    void ResourceWithMetadata::LoadMetadataFromXML(const XMLElement& source)
+    {
+        for (XMLElement elem = source.GetChild("metadata"); elem; elem = elem.GetNext("metadata"))
+            AddMetadata(elem.GetAttribute("name"), elem.GetVariant());
+    }
+
+    void ResourceWithMetadata::SaveMetadataToXML(XMLElement& destination) const
+    {
+        for (unsigned i = 0; i < metadataKeys_.Size(); ++i)
+        {
+            XMLElement elem = destination.CreateChild("metadata");
+            elem.SetString("name", metadataKeys_[i]);
+            elem.SetVariant(GetMetadata(metadataKeys_[i]));
+        }
+    }
+
+    void ResourceWithMetadata::CopyMetadata(const ResourceWithMetadata& source)
+    {
+        metadata_ = source.metadata_;
+        metadataKeys_ = source.metadataKeys_;
+    }
 }

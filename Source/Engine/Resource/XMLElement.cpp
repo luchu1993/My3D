@@ -372,6 +372,38 @@ namespace My3D
         return SetAttribute(name, value);
     }
 
+    bool XMLElement::SetVariant(const Variant& value)
+    {
+        if (!SetAttribute("type", value.GetTypeName()))
+            return false;
+
+        return SetVariantValue(value);
+    }
+
+    bool XMLElement::SetVariantValue(const Variant& value)
+    {
+        switch (value.GetType())
+        {
+//            case VAR_RESOURCEREF:
+//                return SetResourceRef(value.GetResourceRef());
+//
+//            case VAR_RESOURCEREFLIST:
+//                return SetResourceRefList(value.GetResourceRefList());
+
+//            case VAR_VARIANTVECTOR:
+//                return SetVariantVector(value.GetVariantVector());
+//
+//            case VAR_STRINGVECTOR:
+//                return SetStringVector(value.GetStringVector());
+//
+//            case VAR_VARIANTMAP:
+//                return SetVariantMap(value.GetVariantMap());
+//
+//            default:
+                return SetAttribute("value", value.ToString().CString());
+        }
+    }
+
     bool XMLElement::SetVector2(const String& name, const Vector2& value)
     {
         return SetAttribute(name, value.ToString());
@@ -579,6 +611,32 @@ namespace My3D
     Vector4 XMLElement::GetVector4(const String& name) const
     {
         return ToVector4(GetAttribute(name));
+    }
+
+    Variant XMLElement::GetVariant() const
+    {
+        VariantType type = Variant::GetTypeFromName(GetAttribute("type"));
+        return GetVariantValue(type);
+    }
+
+    Variant XMLElement::GetVariantValue(VariantType type) const
+    {
+        Variant ret;
+
+//        if (type == VAR_RESOURCEREF)
+//            ret = GetResourceRef();
+//        else if (type == VAR_RESOURCEREFLIST)
+//            ret = GetResourceRefList();
+//        else if (type == VAR_VARIANTVECTOR)
+//            ret = GetVariantVector();
+//        else if (type == VAR_STRINGVECTOR)
+//            ret = GetStringVector();
+//        else if (type == VAR_VARIANTMAP)
+//            ret = GetVariantMap();
+//        else
+            ret.FromString(type, GetAttributeCString("value"));
+
+        return ret;
     }
 
     Rect XMLElement::GetRect(const String& name) const

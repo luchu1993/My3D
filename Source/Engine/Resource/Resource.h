@@ -89,6 +89,24 @@ namespace My3D
     public:
         /// Construct.
         explicit ResourceWithMetadata(Context* context) : Resource(context) {}
+        /// Add new metadata variable or overwrite old value.
+        void AddMetadata(const String& name, const Variant& value);
+        /// Remove metadata variable.
+        void RemoveMetadata(const String& name);
+        /// Remove all metadata variables.
+        void RemoveAllMetadata();
+        /// Return metadata variable.
+        const Variant& GetMetadata(const String& name) const;
+        /// Return whether the resource has metadata.
+        bool HasMetadata() const;
+
+    protected:
+        /// Load metadata from <metadata> children of XML element.
+        void LoadMetadataFromXML(const XMLElement& source);
+        /// Save as <metadata> children of XML element.
+        void SaveMetadataToXML(XMLElement& destination) const;
+        /// Copy metadata from another resource.
+        void CopyMetadata(const ResourceWithMetadata& source);
 
     private:
         /// Animation metadata variables.
@@ -96,5 +114,34 @@ namespace My3D
         /// Animation metadata keys.
         StringVector metadataKeys_;
     };
+
+    inline const String& GetResourceName(Resource* resource)
+    {
+        return resource ? resource->GetName() : String::EMPTY;
+    }
+
+    inline StringHash GetResourceType(Resource* resource, StringHash defaultType)
+    {
+        return resource ? resource->GetType() : defaultType;
+    }
+
+    inline ResourceRef GetResourceRef(Resource* resource, StringHash defaultType)
+    {
+        return ResourceRef(GetResourceType(resource, defaultType), GetResourceName(resource));
+    }
+
+    template <class T> Vector<String> GetResourceNames(const Vector<SharedPtr<T> >& resources)
+    {
+        Vector<String> ret(resources.Size());
+        for (unsigned i = 0; i < resources.Size(); ++i)
+            ret[i] = GetResourceName(resources[i]);
+
+        return ret;
+    }
+
+    template <class T> ResourceRefList GetResourceRefList(const Vector<SharedPtr<T> >& resources)
+    {
+        return ResourceRefList(T::GetTypeStatic(), GetResourceNames(resources));
+    }
 }
 

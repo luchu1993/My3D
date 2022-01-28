@@ -122,6 +122,20 @@ namespace My3D
         bool SetQuaternion(const String& name, const Quaternion& value);
         /// Set a string attribute.
         bool SetString(const String& name, const String& value);
+        /// Set a variant attribute.
+        bool SetVariant(const Variant& value);
+        /// Set a variant attribute excluding the type.
+        bool SetVariantValue(const Variant& value);
+        /// Set a resource reference attribute.
+        bool SetResourceRef(const ResourceRef& value);
+        /// Set a resource reference list attribute.
+        bool SetResourceRefList(const ResourceRefList& value);
+        /// Set a variant vector attribute. Creates child elements as necessary.
+        bool SetVariantVector(const VariantVector& value);
+        /// Set a string vector attribute. Creates child elements as necessary.
+        bool SetStringVector(const StringVector& value);
+        /// Set a variant map attribute. Creates child elements as necessary.
+        bool SetVariantMap(const VariantMap& value);
         /// Set a Vector2 attribute.
         bool SetVector2(const String& name, const Vector2& value);
         /// Set a Vector3 attribute.
@@ -226,7 +240,14 @@ namespace My3D
         Vector3 GetVector3(const String& name) const;
         /// Return a Vector4 attribute, or zero vector if missing.
         Vector4 GetVector4(const String& name) const;
-
+        /// Return a variant attribute, or empty if missing.
+        Variant GetVariant() const;
+        /// Return a variant attribute with static type.
+        Variant GetVariantValue(VariantType type) const;
+        /// Return a resource reference attribute, or empty if missing.
+        ResourceRef GetResourceRef() const;
+        /// Return a resource reference list attribute, or empty if missing.
+        ResourceRefList GetResourceRefList() const;
         /// Swap with another XMLElement.
         void Swap(XMLElement& rhs);
 
