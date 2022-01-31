@@ -4,12 +4,15 @@
 
 #include "Core/Variant.h"
 #include "Core/StringUtils.h"
+#include "IO/VectorBuffer.h"
 
 
 namespace My3D
 {
     const Variant Variant::EMPTY { };
     const PODVector<unsigned char> Variant::emptyBuffer { };
+    const ResourceRef Variant::emptyResourceRef { };
+    const ResourceRefList Variant::emptyResourceRefList { };
     const VariantMap Variant::emptyVariantMap;
     const VariantVector Variant::emptyVariantVector { };
     const StringVector Variant::emptyStringVector { };
@@ -100,6 +103,18 @@ namespace My3D
         }
 
         return *this;
+    }
+
+    Variant& Variant::operator =(const VectorBuffer& rhs)
+    {
+        SetType(VAR_BUFFER);
+        value_.buffer_ = rhs.GetBuffer();
+        return *this;
+    }
+
+    VectorBuffer Variant::GetVectorBuffer() const
+    {
+        return VectorBuffer(type_ == VAR_BUFFER ? value_.buffer_ : emptyBuffer);
     }
 
     String Variant::GetTypeName(VariantType type)
@@ -231,6 +246,13 @@ namespace My3D
             && strncmp(reinterpret_cast<const char*>(&buffer[0]), reinterpret_cast<const char *>(&rhs[0]), buffer.Size()) == 0;
     }
 
+    bool Variant::operator ==(const VectorBuffer& rhs) const
+    {
+        const PODVector<unsigned char>& buffer = value_.buffer_;
+        return type_ == VAR_BUFFER && buffer.Size() == rhs.GetSize()
+            && strncmp(reinterpret_cast<const char*>(&buffer[0]), reinterpret_cast<const char*>(rhs.GetData()), buffer.Size()) == 0;
+    }
+
     bool Variant::operator ==(const Variant& rhs) const
     {
         if (type_ == VAR_VOIDPTR || type_ == VAR_PTR)
@@ -242,42 +264,73 @@ namespace My3D
         {
             case VAR_INT:
                 return value_.int_ == rhs.value_.int_;
+
             case VAR_INT64:
                 return value_.int64_ == rhs.value_.int64_;
+
             case VAR_BOOL:
                 return value_.bool_ == rhs.value_.bool_;
+
             case VAR_FLOAT:
                 return value_.float_ == rhs.value_.float_;
+
             case VAR_VECTOR2:
                 return value_.vector2_ == rhs.value_.vector2_;
+
             case VAR_VECTOR3:
                 return value_.vector3_ == rhs.value_.vector3_;
+
             case VAR_VECTOR4:
                 return value_.vector4_ == rhs.value_.vector4_;
+
+            case VAR_QUATERNION:
+                return value_.quaternion_ == rhs.value_.quaternion_;
+
             case VAR_COLOR:
                 return value_.color_ == rhs.value_.color_;
+
             case VAR_STRING:
                 return value_.string_ == rhs.value_.string_;
+
             case VAR_BUFFER:
                 return value_.buffer_ == rhs.value_.buffer_;
+
+            case VAR_RESOURCEREF:
+                return value_.resourceRef_ == rhs.value_.resourceRef_;
+
+            case VAR_RESOURCEREFLIST:
+                return value_.resourceRefList_ == rhs.value_.resourceRefList_;
+
             case VAR_VARIANTVECTOR:
                 return value_.variantVector_ == rhs.value_.variantVector_;
+
             case VAR_STRINGVECTOR:
                 return value_.stringVector_ == rhs.value_.stringVector_;
+
             case VAR_VARIANTMAP:
                 return value_.variantMap_ == rhs.value_.variantMap_;
+
+            case VAR_INTRECT:
+                return value_.intRect_ == rhs.value_.intRect_;
+
             case VAR_INTVECTOR2:
                 return value_.intVector2_ == rhs.value_.intVector2_;
+
             case VAR_INTVECTOR3:
                 return value_.intVector3_ == rhs.value_.intVector3_;
+
             case VAR_MATRIX3:
                 return *value_.matrix3_ == *rhs.value_.matrix3_;
+
             case VAR_MATRIX3X4:
                 return *value_.matrix3x4_ == *rhs.value_.matrix3x4_;
+
             case VAR_MATRIX4:
                 return *value_.matrix4_ == *rhs.value_.matrix4_;
+
             case VAR_DOUBLE:
                 return value_.double_ == rhs.value_.double_;
+
             case VAR_RECT:
                 return value_.rect_ == rhs.value_.rect_;
             default:
@@ -325,12 +378,42 @@ namespace My3D
         case VAR_VECTOR4:
             *this = ToVector4(value);
             break;
+        case VAR_QUATERNION:
+            *this = ToQuaternion(value);
+            break;
         case VAR_STRING:
             *this = value;
             break;
         case VAR_VOIDPTR:
             // From string to void pointer not supported, set to null
             *this = (void*)nullptr;
+            break;
+        case VAR_RESOURCEREF:
+        {
+            StringVector values = String::Split(value, ';');
+            if (values.Size() == 2)
+            {
+                SetType(VAR_RESOURCEREF);
+                value_.resourceRef_.type_ = values[0];
+                value_.resourceRef_.name_ = values[1];
+            }
+            break;
+        }
+        case VAR_RESOURCEREFLIST:
+        {
+            StringVector values = String::Split(value, ';', true);
+            if (values.Size() > 1)
+            {
+                SetType(VAR_RESOURCEREFLIST);
+                value_.resourceRefList_.type_ = values[0];
+                value_.resourceRefList_.names_.Resize(values.Size() - 1);
+                for (unsigned  i = 1; i < values.Size(); ++i)
+                    value_.resourceRefList_.names_[i - 1] = values[i];
+            }
+            break;
+        }
+        case VAR_INTRECT:
+            *this = ToIntRect(value);
             break;
         case VAR_INTVECTOR2:
             *this = ToIntVector2(value);
@@ -416,6 +499,11 @@ namespace My3D
         return GetVector4();
     }
 
+    template <> const Quaternion& Variant::Get<const Quaternion&>() const
+    {
+        return GetQuaternion();
+    }
+
     template <> const Color& Variant::Get<const Color&>() const
     {
         return GetColor();
@@ -429,6 +517,11 @@ namespace My3D
     template <> const Rect& Variant::Get<const Rect&>() const
     {
         return GetRect();
+    }
+
+    template <> const IntRect& Variant::Get<const IntRect&>() const
+    {
+        return GetIntRect();
     }
 
     template <> const IntVector2& Variant::Get<const IntVector2&>() const
@@ -471,6 +564,16 @@ namespace My3D
         return GetMatrix4();
     }
 
+    template <> ResourceRef Variant::Get<ResourceRef>() const
+    {
+        return GetResourceRef();
+    }
+
+    template <> ResourceRefList Variant::Get<ResourceRefList>() const
+    {
+        return GetResourceRefList();
+    }
+
     template <> VariantVector Variant::Get<VariantVector>() const
     {
         return GetVariantVector();
@@ -501,6 +604,11 @@ namespace My3D
         return GetVector4();
     }
 
+    template <> Quaternion Variant::Get<Quaternion>() const
+    {
+        return GetQuaternion();
+    };
+
     template <> Color Variant::Get<Color>() const
     {
         return GetColor();
@@ -515,6 +623,11 @@ namespace My3D
     {
         return GetRect();
     }
+
+    template <> IntRect Variant::Get<IntRect>() const
+    {
+        return GetIntRect();
+    };
 
     template <> IntVector2 Variant::Get<IntVector2>() const
     {

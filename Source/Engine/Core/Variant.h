@@ -138,7 +138,7 @@ namespace My3D
     /// Union for the possible variant values. Objects exceeding the VARIANT_VALUE_SIZE are allocated on the heap.
     union VariantValue
     {
-        unsigned char storage_[VARIANT_VALUE_SIZE];
+        unsigned char storage_[VARIANT_VALUE_SIZE]{};
         int int_;
         bool bool_;
         float float_;
@@ -164,6 +164,8 @@ namespace My3D
         VariantVector variantVector_;
         VariantMap variantMap_;
         PODVector<unsigned char> buffer_;
+        ResourceRef resourceRef_;
+        ResourceRefList resourceRefList_;
 
         /// Construct uninitialized.
         VariantValue() { }
@@ -214,8 +216,14 @@ namespace My3D
         Variant(const char* value) { *this = value; }
         /// Construct from a buffer
         Variant(const PODVector<unsigned char>& value) { *this = value; }
+        /// Construct from a VectorBuffer and store as a buffer.
+        Variant(const VectorBuffer& value) { *this = value; }
         /// Construct from a pointer
         Variant(void* value) { *this = value; }
+        /// Construct from a resource reference
+        Variant(const ResourceRef& value) { *this = value; }
+        /// Construct from a resource reference list
+        Variant(const ResourceRefList& value) { *this = value; }
         /// Construct from a variant vector
         Variant(const VariantVector& value) { *this = value; }
         /// Construct from a variant map.
@@ -388,11 +396,27 @@ namespace My3D
             value_.buffer_ = rhs;
             return *this;
         }
+        /// Assign from a VectorBuffer and store as a buffer
+        Variant& operator =(const VectorBuffer& rhs);
         /// Assign from a void pointer.
         Variant& operator =(void* rhs)
         {
             SetType(VAR_VOIDPTR);
             value_.voidPtr_ = rhs;
+            return *this;
+        }
+        /// Assign from a resource reference
+        Variant& operator =(const ResourceRef& rhs)
+        {
+            SetType(VAR_RESOURCEREF);
+            value_.resourceRef_ = rhs;
+            return *this;
+        }
+        /// Assign from a resource reference list
+        Variant& operator =(const ResourceRefList& rhs)
+        {
+            SetType(VAR_RESOURCEREFLIST);
+            value_.resourceRefList_ = rhs;
             return *this;
         }
         /// Assign from a variant vector.
@@ -605,7 +629,18 @@ namespace My3D
         }
         /// Test for equality with a buffer. To return true, both the type and value must match.
         bool operator ==(const PODVector<unsigned char>& rhs) const;
-
+        /// Test for equality with a VectorBuffer. To return true, both the type and value must match.
+        bool operator ==(const VectorBuffer& rhs) const;
+        /// Test for equality with a resource reference. To return true, both the type and value must match.
+        bool operator ==(const ResourceRef& rhs) const
+        {
+            return type_ == VAR_RESOURCEREF && value_.resourceRef_ == rhs;
+        }
+        /// Test for equality with a resource reference list. To return true, both the type and value must match.
+        bool operator ==(const ResourceRefList& rhs) const
+        {
+            return type_ == VAR_RESOURCEREFLIST && value_.resourceRefList_ == rhs;
+        }
         /// Test for inequality with another variant.
         bool operator !=(const Variant& rhs) const { return !(*this == rhs); }
         /// Test for inequality with an integer.
@@ -644,8 +679,14 @@ namespace My3D
         bool operator !=(const String& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a buffer.
         bool operator !=(const PODVector<unsigned char>& rhs) const { return !(*this == rhs); }
+        /// Test for inequality with a VectorBuffer.
+        bool operator !=(const VectorBuffer& rhs) const { return !(*this == rhs); }
         /// Test for inequality with a pointer.
         bool operator !=(void* rhs) const { return !(*this == rhs); }
+        /// Test for inequality with a resource reference.
+        bool operator !=(const ResourceRef& rhs) const { return !(*this == rhs); }
+        /// Test for inequality with a resource reference list.
+        bool operator !=(const ResourceRefList& rhs) const { return !(*this == rhs); }
         /// Test for inequality with an IntVector2.
         bool operator !=(const IntVector2& rhs) const { return !(*this == rhs); }
         /// Test for inequality with an IntVector3.
@@ -774,6 +815,19 @@ namespace My3D
         {
             return type_ == VAR_BUFFER ? value_.buffer_ : emptyBuffer;
         }
+        /// Return VectorBuffer containing the buffer or empty on type mismatch.
+        VectorBuffer GetVectorBuffer() const;
+
+        /// Return a resource reference or empty on type mismatch.
+        const ResourceRef& GetResourceRef() const
+        {
+            return type_ == VAR_RESOURCEREF ? value_.resourceRef_ : emptyResourceRef;
+        }
+        /// Return a resource reference list or empty on type mismatch.
+        const ResourceRefList& GetResourceRefList() const
+        {
+            return type_ == VAR_RESOURCEREFLIST ? value_.resourceRefList_ : emptyResourceRefList;
+        }
         /// Return a variant vector or empty on type mismatch.
         const VariantVector& GetVariantVector() const
         {
@@ -862,6 +916,10 @@ namespace My3D
         static const Variant EMPTY;
         /// Empty buffer.
         static const PODVector<unsigned char> emptyBuffer;
+        /// Empty resource reference.
+        static const ResourceRef emptyResourceRef;
+        /// Empty resource reference list.
+        static const ResourceRefList emptyResourceRefList;
         /// Empty variant map.
         static const VariantMap emptyVariantMap;
         /// Empty variant vector.
@@ -895,6 +953,8 @@ namespace My3D
     template <> inline VariantType GetVariantType<String>() { return VAR_STRING; }
     template <> inline VariantType GetVariantType<StringHash>() { return VAR_INT; }
     template <> inline VariantType GetVariantType<PODVector<unsigned char> >() { return VAR_BUFFER; }
+    template <> inline VariantType GetVariantType<ResourceRef>() { return VAR_RESOURCEREF; }
+    template <> inline VariantType GetVariantType<ResourceRefList>() { return VAR_RESOURCEREFLIST; }
     template <> inline VariantType GetVariantType<VariantVector>() { return VAR_VARIANTVECTOR; }
     template <> inline VariantType GetVariantType<StringVector>() { return VAR_STRINGVECTOR; }
     template <> inline VariantType GetVariantType<VariantMap>() { return VAR_VARIANTMAP; }
@@ -918,9 +978,11 @@ namespace My3D
     template <> MY3D_API const Vector2& Variant::Get<const Vector2&>() const;
     template <> MY3D_API const Vector3& Variant::Get<const Vector3&>() const;
     template <> MY3D_API const Vector4& Variant::Get<const Vector4&>() const;
+    template <> MY3D_API const Quaternion& Variant::Get<const Quaternion&>() const;
     template <> MY3D_API const Color& Variant::Get<const Color&>() const;
     template <> MY3D_API const String& Variant::Get<const String&>() const;
     template <> MY3D_API const Rect& Variant::Get<const Rect&>() const;
+    template <> MY3D_API const IntRect& Variant::Get<const IntRect&>() const;
     template <> MY3D_API const IntVector2& Variant::Get<const IntVector2&>() const;
     template <> MY3D_API const IntVector3& Variant::Get<const IntVector3&>() const;
     template <> MY3D_API const PODVector<unsigned char>& Variant::Get<const PODVector<unsigned char>&>() const;
@@ -930,17 +992,19 @@ namespace My3D
     template <> MY3D_API const Matrix3x4& Variant::Get<const Matrix3x4&>() const;
     template <> MY3D_API const Matrix4& Variant::Get<const Matrix4&>() const;
 
+    template <> MY3D_API ResourceRef Variant::Get<ResourceRef>() const;
+    template <> MY3D_API ResourceRefList Variant::Get<ResourceRefList>() const;
     template <> MY3D_API VariantVector Variant::Get<VariantVector>() const;
     template <> MY3D_API StringVector Variant::Get<StringVector>() const;
     template <> MY3D_API VariantMap Variant::Get<VariantMap>() const;
     template <> MY3D_API Vector2 Variant::Get<Vector2>() const;
     template <> MY3D_API Vector3 Variant::Get<Vector3>() const;
     template <> MY3D_API Vector4 Variant::Get<Vector4>() const;
-    template <> MY3D_API const Quaternion& Variant::Get<const Quaternion&>() const;
+    template <> MY3D_API Quaternion& Variant::Get<Quaternion&>() const;
     template <> MY3D_API Color Variant::Get<Color>() const;
     template <> MY3D_API String Variant::Get<String>() const;
     template <> MY3D_API Rect Variant::Get<Rect>() const;
-    template <> MY3D_API const IntRect& Variant::Get<const IntRect&>() const;
+    template <> MY3D_API IntRect& Variant::Get<IntRect&>() const;
     template <> MY3D_API IntVector2 Variant::Get<IntVector2>() const;
     template <> MY3D_API IntVector3 Variant::Get<IntVector3>() const;
     template <> MY3D_API PODVector<unsigned char> Variant::Get<PODVector<unsigned char> >() const;

@@ -30,9 +30,6 @@ public:
         engineParameters_[EP_FULL_SCREEN] = false;
         engineParameters_[EP_HEADLESS] = false;
 
-        engineParameters_[EP_WINDOW_WIDTH] = 1920;
-        engineParameters_[EP_WINDOW_HEIGHT] = 1080;
-
         MY3D_LOGINFO("[HelloWorld] Setup My3D Engine!");
     }
 
