@@ -18,7 +18,6 @@
 #include "Math/Color.h"
 
 
-
 namespace My3D
 {
     /// VariantType
@@ -84,15 +83,15 @@ namespace My3D
         {
         }
         /// Construct with type and resource name.
-        ResourceRef(const String& type, const String& name) :
-                type_(type),
-                name_(name)
+        ResourceRef(const String& type, const String& name)
+            : type_(type)
+            , name_(name)
         {
         }
         /// Construct with type and resource name.
-        ResourceRef(const char* type, const char* name) :
-                type_(type),
-                name_(name)
+        ResourceRef(const char* type, const char* name)
+            : type_(type)
+            , name_(name)
         {
         }
         /// Construct from another ResourceRef

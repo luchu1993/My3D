@@ -384,24 +384,102 @@ namespace My3D
     {
         switch (value.GetType())
         {
-//            case VAR_RESOURCEREF:
-//                return SetResourceRef(value.GetResourceRef());
-//
-//            case VAR_RESOURCEREFLIST:
-//                return SetResourceRefList(value.GetResourceRefList());
+            case VAR_RESOURCEREF:
+                return SetResourceRef(value.GetResourceRef());
 
-//            case VAR_VARIANTVECTOR:
-//                return SetVariantVector(value.GetVariantVector());
-//
-//            case VAR_STRINGVECTOR:
-//                return SetStringVector(value.GetStringVector());
-//
-//            case VAR_VARIANTMAP:
-//                return SetVariantMap(value.GetVariantMap());
-//
-//            default:
+            case VAR_RESOURCEREFLIST:
+                return SetResourceRefList(value.GetResourceRefList());
+
+            case VAR_VARIANTVECTOR:
+                return SetVariantVector(value.GetVariantVector());
+
+            case VAR_STRINGVECTOR:
+                return SetStringVector(value.GetStringVector());
+
+            case VAR_VARIANTMAP:
+                return SetVariantMap(value.GetVariantMap());
+
+            default:
                 return SetAttribute("value", value.ToString().CString());
         }
+    }
+
+    bool XMLElement::SetResourceRef(const ResourceRef &value)
+    {
+        if (!file_ || (!node_ && !xpathNode_))
+            return false;
+
+        // Need the context to query for the type
+        Context* context = file_->GetContext();
+        return SetAttribute("value", String(context->GetTypeName(value.type_)) + ";" + value.name_);
+    }
+
+    bool XMLElement::SetResourceRefList(const ResourceRefList &value)
+    {
+        if (!file_ || (!node_ && !xpathNode_))
+            return false;
+
+        // Need context to query for the type
+        Context* context = file_->GetContext();
+        String str(context->GetTypeName(value.type_));
+
+        for (unsigned i = 0; i < value.names_.Size(); ++i)
+        {
+            str += ";";
+            str += value.names_[i];
+        }
+
+        return SetAttribute("value", str.CString());
+    }
+
+    bool XMLElement::SetVariantVector(const VariantVector &value)
+    {
+        // Must remove all existing variant child elements (if they exist) to not cause confusion
+        if (!RemoveChildren("variant"))
+            return false;
+
+        for (VariantVector::ConstIterator i = value.Begin(); i != value.End(); ++i)
+        {
+            XMLElement variantElem = CreateChild("variant");
+            if (!variantElem)
+                return false;
+            variantElem.SetVariant(*i);
+        }
+
+        return true;
+    }
+
+    bool XMLElement::SetStringVector(const StringVector &value)
+    {
+        if (!RemoveChildren("string"))
+            return false;
+
+        for (StringVector::ConstIterator i = value.Begin(); i != value.End(); ++i)
+        {
+            XMLElement stringElem = CreateChild("string");
+            if (!stringElem)
+                return false;
+            stringElem.SetAttribute("value", *i);
+        }
+
+        return true;
+    }
+
+    bool XMLElement::SetVariantMap(const VariantMap &value)
+    {
+        if (!RemoveChildren("variant"))
+            return false;
+
+        for (VariantMap::ConstIterator i = value.Begin(); i != value.End(); ++i)
+        {
+            XMLElement variantElem = CreateChild("variant");
+            if (!variantElem)
+                return false;
+            variantElem.SetUInt("hash", i->first_.Value());
+            variantElem.SetVariant(i->second_);
+        }
+
+        return true;
     }
 
     bool XMLElement::SetVector2(const String& name, const Vector2& value)
@@ -417,6 +495,16 @@ namespace My3D
     bool XMLElement::SetVector4(const String& name, const Vector4& value)
     {
         return SetAttribute(name, value.ToString());
+    }
+
+    bool XMLElement::SetVectorVariant(const String &name, const Variant &value)
+    {
+        VariantType type = value.GetType();
+        if (type == VAR_FLOAT || type == VAR_VECTOR2 || type == VAR_VECTOR3 || type == VAR_VECTOR4
+            || type == VAR_MATRIX3 || type == VAR_MATRIX3X4 || type == VAR_MATRIX4)
+            return SetAttribute(name, value.ToString());
+        else
+            return false;
     }
 
     String XMLElement::GetName() const
@@ -613,6 +701,31 @@ namespace My3D
         return ToVector4(GetAttribute(name));
     }
 
+    Vector4 XMLElement::GetVector(const String &name) const
+    {
+        return ToVector4(GetAttribute(name), true);
+    }
+
+    Variant XMLElement::GetVectorVariant(const String &name) const
+    {
+        return ToVectorVariant(GetAttribute(name));
+    }
+
+    Matrix3 XMLElement::GetMatrix3(const String &name) const
+    {
+        return ToMatrix3(GetAttribute(name));
+    }
+
+    Matrix3x4 XMLElement::GetMatrix3x4(const String &name) const
+    {
+        return ToMatrix3x4(GetAttribute(name));
+    }
+
+    Matrix4 XMLElement::GetMatrix4(const String &name) const
+    {
+        return ToMatrix4(GetAttribute(name));
+    }
+
     Variant XMLElement::GetVariant() const
     {
         VariantType type = Variant::GetTypeFromName(GetAttribute("type"));
@@ -623,18 +736,93 @@ namespace My3D
     {
         Variant ret;
 
-//        if (type == VAR_RESOURCEREF)
-//            ret = GetResourceRef();
-//        else if (type == VAR_RESOURCEREFLIST)
-//            ret = GetResourceRefList();
-//        else if (type == VAR_VARIANTVECTOR)
-//            ret = GetVariantVector();
-//        else if (type == VAR_STRINGVECTOR)
-//            ret = GetStringVector();
-//        else if (type == VAR_VARIANTMAP)
-//            ret = GetVariantMap();
-//        else
+        if (type == VAR_RESOURCEREF)
+            ret = GetResourceRef();
+        else if (type == VAR_RESOURCEREFLIST)
+            ret = GetResourceRefList();
+        else if (type == VAR_VARIANTVECTOR)
+            ret = GetVariantVector();
+        else if (type == VAR_STRINGVECTOR)
+            ret = GetStringVector();
+        else if (type == VAR_VARIANTMAP)
+            ret = GetVariantMap();
+        else
             ret.FromString(type, GetAttributeCString("value"));
+
+        return ret;
+    }
+
+    ResourceRef XMLElement::GetResourceRef() const
+    {
+        ResourceRef ret;
+
+        Vector<String> values = GetAttribute("value").Split(';');
+        if (values.Size() == 2)
+        {
+            ret.type_ = values[0];
+            ret.name_ = values[1];
+        }
+
+        return ret;
+    }
+
+    ResourceRefList XMLElement::GetResourceRefList() const
+    {
+        ResourceRefList ret;
+        Vector<String> values = GetAttribute("value").Split(';');
+        if (values.Size() >= 1)
+        {
+            ret.type_ = values[0];
+            ret.names_.Resize(values.Size() - 1);
+            for (unsigned i = 1; i < values.Size(); ++i)
+                ret.names_[i-1] = values[i];
+        }
+
+        return ret;
+    }
+
+    VariantVector XMLElement::GetVariantVector() const
+    {
+        VariantVector ret;
+
+        XMLElement variantElem = GetChild("variant");
+        while (variantElem)
+        {
+            ret.Push(variantElem.GetVariant());
+            variantElem = variantElem.GetNext("variant");
+        }
+
+        return ret;
+    }
+
+    StringVector XMLElement::GetStringVector() const
+    {
+        StringVector ret;
+
+        XMLElement stringElem = GetChild("string");
+        while (stringElem)
+        {
+            ret.Push(stringElem.GetAttributeCString("value"));
+            stringElem = stringElem.GetNext("string");
+        }
+
+        return ret;
+    }
+
+    VariantMap XMLElement::GetVariantMap() const
+    {
+        VariantMap ret;
+
+        XMLElement variantElem = GetChild("variant");
+        while (variantElem)
+        {
+            if (variantElem.HasAttribute("name"))
+                ret[StringHash(variantElem.GetAttribute("name"))] = variantElem.GetVariant();
+            else
+                ret[StringHash(variantElem.GetUInt("hash"))] = variantElem.GetVariant();
+
+            variantElem = variantElem.GetNext("variant");
+        }
 
         return ret;
     }

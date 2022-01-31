@@ -656,6 +656,14 @@ namespace My3D
                 value_.buffer_.~PODVector<unsigned char>();
                 break;
 
+            case VAR_RESOURCEREF:
+                value_.resourceRef_.~ResourceRef();
+                break;
+
+            case VAR_RESOURCEREFLIST:
+                value_.resourceRefList_.~ResourceRefList();
+                break;
+
             case VAR_VARIANTVECTOR:
                 value_.variantVector_.~VariantVector();
                 break;
@@ -693,15 +701,23 @@ namespace My3D
         switch (type_)
         {
             case VAR_STRING:
-                new(&value_.string_) String();
+                new (&value_.string_) String();
                 break;
 
             case VAR_BUFFER:
-                new(&value_.buffer_) PODVector<unsigned char>();
+                new (&value_.buffer_) PODVector<unsigned char>();
+                break;
+
+            case VAR_RESOURCEREF:
+                new (&value_.resourceRef_) ResourceRef();
+                break;
+
+            case VAR_RESOURCEREFLIST:
+                new (&value_.resourceRefList_) ResourceRefList();
                 break;
 
             case VAR_VARIANTVECTOR:
-                new(&value_.variantVector_) VariantVector();
+                new (&value_.variantVector_) VariantVector();
                 break;
 
             case VAR_STRINGVECTOR:

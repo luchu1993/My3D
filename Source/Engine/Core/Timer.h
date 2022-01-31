@@ -4,8 +4,6 @@
 
 #pragma once
 
-
-#include "My3D.h"
 #include "Core/Object.h"
 
 

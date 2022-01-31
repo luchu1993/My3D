@@ -133,22 +133,34 @@ namespace My3D
         {
         case VAR_INT:
             return String(value_.int_);
+
         case VAR_INT64:
             return String(value_.int64_);
+
         case VAR_BOOL:
             return String(value_.bool_);
+
         case VAR_FLOAT:
             return String(value_.float_);
+
         case VAR_VECTOR2:
             return value_.vector2_.ToString();
+
         case VAR_VECTOR3:
             return value_.vector3_.ToString();
+
         case VAR_VECTOR4:
             return value_.vector4_.ToString();
+
+        case VAR_QUATERNION:
+            return value_.quaternion_.ToString();
+
         case VAR_COLOR:
             return value_.color_.ToString();
+
         case VAR_STRING:
             return value_.string_;
+
         case VAR_BUFFER:
         {
             const PODVector<unsigned char> &buffer = value_.buffer_;
@@ -156,21 +168,43 @@ namespace My3D
             BufferToString(ret, buffer.Begin().ptr_, buffer.Size());
             return ret;
         }
+
+        case VAR_VOIDPTR:
+        case VAR_PTR:
+            // Pointer serialization not supported (convert to null)
+            return String(0);
+
+        case VAR_INTRECT:
+            return value_.intRect_.ToString();
+
         case VAR_INTVECTOR2:
             return value_.intVector2_.ToString();
+
         case VAR_INTVECTOR3:
             return value_.intVector3_.ToString();
+
         case VAR_MATRIX3:
             return value_.matrix3_->ToString();
+
         case VAR_MATRIX3X4:
             return value_.matrix3x4_->ToString();
+
         case VAR_MATRIX4:
             return value_.matrix4_->ToString();
+
         case VAR_DOUBLE:
             return String(value_.double_);
+
         case VAR_RECT:
             return value_.rect_.ToString();
+
+        case VAR_CUSTOM_HEAP:
+        case VAR_CUSTOM_STACK:
+
         default:
+            // VAR_RESOURCEREF, VAR_RESOURCEREFLIST, VAR_VARIANTVECTOR, VAR_STRINGVECTOR, VAR_VARIANTMAP
+            // Reference string serialization requires typehash-to-name mapping from the context. Can not support here
+            // Also variant map or vector string serialization is not supported. XML or binary save should be used instead
             return String::EMPTY;
         }
     }
@@ -181,49 +215,93 @@ namespace My3D
         {
             case VAR_INT:
                 return value_.int_ == 0;
+
             case VAR_INT64:
                 return value_.int64_ == 0;
+
             case VAR_BOOL:
                 return !value_.bool_;
+
             case VAR_FLOAT:
                 return value_.float_ == 0.0f;
+
             case VAR_VECTOR2:
                 return value_.vector2_ == Vector2::ZERO;
+
             case VAR_VECTOR3:
                 return value_.vector3_ == Vector3::ZERO;
+
             case VAR_VECTOR4:
                 return value_.vector4_ == Vector4::ZERO;
+
+            case VAR_QUATERNION:
+                return value_.quaternion_ == Quaternion::IDENTITY;
+
             case VAR_COLOR:
                 // WHITE is considered empty (i.e. default) color in the Color class definition
                 return value_.color_ == Color::WHITE;
+
             case VAR_STRING:
                 return value_.string_.Empty();
+
             case VAR_BUFFER:
                 return value_.buffer_.Empty();
+
             case VAR_VOIDPTR:
                 return value_.voidPtr_ == nullptr;
+
+            case VAR_RESOURCEREF:
+                return value_.resourceRef_.name_.Empty();
+
+            case VAR_RESOURCEREFLIST:
+            {
+                for (auto const& name : value_.resourceRefList_.names_)
+                {
+                    if (!name.Empty())
+                        return false;
+                }
+                return true;
+            }
+
             case VAR_VARIANTVECTOR:
                 return value_.variantVector_.Empty();
+
             case VAR_STRINGVECTOR:
                 return value_.stringVector_.Empty();
+
             case VAR_VARIANTMAP:
                 return value_.variantMap_.Empty();
+
+            case VAR_INTRECT:
+                return value_.intRect_ == IntRect::ZERO;
+
             case VAR_INTVECTOR2:
                 return value_.intVector2_ == IntVector2::ZERO;
+
             case VAR_INTVECTOR3:
                 return value_.intVector3_ == IntVector3::ZERO;
+
             case VAR_PTR:
                 return value_.weakPtr_ == (RefCounted*)nullptr;
+
             case VAR_MATRIX3:
                 return *value_.matrix3_ == Matrix3::IDENTITY;
+
             case VAR_MATRIX3X4:
                 return *value_.matrix3x4_ == Matrix3x4::IDENTITY;
+
             case VAR_MATRIX4:
                 return *value_.matrix4_ == Matrix4::IDENTITY;
+
             case VAR_DOUBLE:
                 return value_.double_ == 0.0;
+
             case VAR_RECT:
                 return value_.rect_ == Rect::ZERO;
+
+            case VAR_CUSTOM_HEAP:
+            case VAR_CUSTOM_STACK:
+
             default:
                 return true;
         }

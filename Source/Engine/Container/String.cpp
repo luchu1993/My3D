@@ -721,6 +721,16 @@ String String::Trimmed() const
     return Substring(trimStart, trimEnd - trimStart);
 }
 
+Vector<String> String::Split(char separator, bool keepEmptyStrings) const
+{
+    return Split(CString(), separator, keepEmptyStrings);
+}
+
+void String::Join(const Vector<String> &subStrings, const String &glue)
+{
+    *this = Joined(subStrings, glue);
+}
+
 String String::Substring(unsigned int pos) const
 {
     if (pos < length_)

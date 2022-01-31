@@ -343,6 +343,10 @@ public:
     String ToLower() const;
     /// Return string with whitespace trimmed from the beginning and the end.
     String Trimmed() const;
+    /// Return substrings split by a separator char. By default don't return empty strings.
+    Vector<String> Split(char separator, bool keepEmptyStrings = false) const;
+    /// Join substrings with a 'glue' string.
+    void Join(const Vector<String>& subStrings, const String& glue);
     /// Return index to the first occurrence of a string, or NPOS if not found.
     unsigned Find(const String& str, unsigned startPos = 0, bool caseSensitive = true) const;
     /// Return index to the first occurrence of a character, or NPOS if not found.
