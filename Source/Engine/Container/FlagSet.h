@@ -149,17 +149,17 @@ namespace My3D
         /// Equality check against another flagset
         bool operator !=(FlagSet& rhs) const
         {
-            return !(value_ == rhs.value_);
+            return value_ != rhs.value_;
         }
         /// Inequality check against enum value.
         bool operator ==(Enum rhs) const
         {
-            return *this == rhs;
+            return value_ == static_cast<Integer>(rhs);
         }
         /// Inequality check against enum value.
         bool operator !=(Enum rhs) const
         {
-            return !(*this == rhs);
+            return value_ != static_cast<Integer>(rhs);
         }
         /// Return true if specified enum value is set.
         inline bool Test(const Enum value) const

@@ -307,6 +307,16 @@ namespace My3D
         return SetVector3("max", value.max_);
     }
 
+    bool XMLElement::SetBuffer(const String &name, const void *data, unsigned int size)
+    {
+        return false;
+    }
+
+    bool XMLElement::SetBuffer(const String &name, const PODVector<unsigned char> &value)
+    {
+        return false;
+    }
+
     bool XMLElement::SetColor(const String& name, const Color& value)
     {
         return SetAttribute(name, value.ToString());

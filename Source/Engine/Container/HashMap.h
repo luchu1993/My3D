@@ -114,51 +114,53 @@ namespace My3D
         /// Hash map const iterator
         struct ConstIterator : public HashIteratorBase
         {
+            /// Construct.
             ConstIterator() = default;
-
+            /// Construct with a node pointer.
             explicit ConstIterator(Node* ptr)
                 : HashIteratorBase(ptr)
             {
             }
-
-            ConstIterator(const ConstIterator& rhs)
+            /// Construct from a non-const iterator.
+            ConstIterator(const Iterator& rhs)
                 : HashIteratorBase(rhs.ptr_)
             {
             }
-
-            ConstIterator& operator=(const ConstIterator& rhs)
+            /// Assign from a non-const iterator.
+            ConstIterator& operator=(const Iterator& rhs)
             {
                 ptr_ = rhs.ptr_;
                 return *this;
             }
-
+            /// Preincrement the pointer.
             ConstIterator& operator++()
             {
                 GotoNext();
                 return *this;
             }
-
+            /// Postincrement the pointer.
             ConstIterator operator++(int)
             {
                 ConstIterator it = *this;
                 GotoNext();
                 return it;
             }
-
+            /// Predecrement the pointer.
             ConstIterator& operator--()
             {
                 GotoPrev();
                 return *this;
             }
-
+            /// Postdecrement the pointer.
             ConstIterator operator--(int)
             {
                 ConstIterator it = *this;
                 GotoPrev();
                 return it;
             }
-
+            /// Point to the pair.
             const KeyValue* operator ->() const { return &(static_cast<Node*>(ptr_)->pair_); }
+            /// Dereference the pair.
             const KeyValue& operator *() const { return static_cast<Node*>(ptr_)->pair_; }
         };
 
