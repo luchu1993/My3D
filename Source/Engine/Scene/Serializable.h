@@ -13,7 +13,6 @@ namespace My3D
 {
     class Deserializer;
     class Serializer;
-    class JSONValue;
     class XMLElement;
 
 
@@ -49,20 +48,33 @@ namespace My3D
         /// Mark for attribute check on the next network update.
         virtual void MarkNetworkUpdate() { }
 
-        /// @property{get_attributes}
+        /// Set attribute by index. Return true if successfully set.
+        bool SetAttribute(unsigned index, const Variant& value);
+        /// Set attribute by name. Return true if successfully set.
+        bool SetAttribute(const String& name, const Variant& value);
+        /// Set instance-level default flag.
+        void SetInstanceDefault(bool enable) { setInstanceDefault_ = enable; }
+        /// Reset all editable attributes to their default values.
+        void ResetToDefault();
+        /// Remove instance's default values if they are set previously.
+        void RemoveInstanceDefault();
+        /// Set temporary flag. Temporary objects will not be saved.
+        void SetTemporary(bool enable);
+
+        /// Return attribute value by index. Return empty if illegal index.
         Variant GetAttribute(unsigned index) const;
         /// Return attribute value by name. Return empty if not found.
         Variant GetAttribute(const String& name) const;
         /// Return attribute default value by index. Return empty if illegal index.
-        /// @property{get_attributeDefaults}
         Variant GetAttributeDefault(unsigned index) const;
         /// Return attribute default value by name. Return empty if not found.
         Variant GetAttributeDefault(const String& name) const;
         /// Return number of attributes.
-        /// @property
         unsigned GetNumAttributes() const;
         /// Return number of network replication attributes.
         unsigned GetNumNetworkAttributes() const;
+        /// Return whether is temporary
+        bool IsTemporary() const { return temporary_; }
 
     private:
         /// Set instance-level default value.
@@ -76,4 +88,117 @@ namespace My3D
         /// Temporary flag.
         bool temporary_;
     };
+
+    /// Template implementation of variant attribute accessor
+    template <typename TClassType, typename TGetFunction, class TSetFunction>
+    class VariantAttributeAccessorImpl : public AttributeAccessor
+    {
+    public:
+        /// Construct
+        VariantAttributeAccessorImpl(TGetFunction getFunction, TSetFunction setFunction)
+            : getFunction_(getFunction)
+            , setFunction_(setFunction)
+        {
+        }
+        /// Invoke getter function
+        void Get(const Serializable* ptr, Variant& value) const override
+        {
+            assert(ptr);
+            const auto classPtr = static_cast<const TClassType*>(ptr);
+            getFunction_(*classPtr, value);
+        }
+        // Invoke setter function
+        void Set(Serializable* ptr, const Variant& value) override
+        {
+            assert(ptr);
+            auto classPtr = static_cast<TClassType*>(ptr);
+            setFunction_(*classPtr, value);
+        }
+
+    private:
+        /// Get functor
+        TGetFunction getFunction_;
+        /// Set functor
+        TSetFunction setFunction_;
+    };
+
+    /// Make variant attribute accessor implementation.
+    template <typename TClassType, typename TGetFunction, typename TSetFunction>
+    SharedPtr<AttributeAccessor> MakeVariantAttributeAccessor(TGetFunction getFunction, TSetFunction setFunction)
+    {
+        return SharedPtr<AttributeAccessor>(new VariantAttributeAccessorImpl<TClassType, TGetFunction, TSetFunction>(getFunction, setFunction));
+    }
+
+    /// Make member attribute accessor
+    #define MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable) My3D::MakeVariantAttributeAccessor<ClassName>(\
+        [](const ClassName& self, My3D::Variant& value) { value = self.variable; }, \
+        [](ClassName& self, const My3D::Variant& value) { self.variable = value.Get<typeName>(); })
+
+    /// Make member attribute accessor with custom post-set callback
+    #define MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typename, variable, postSetCallback) My3D::MakeVariantAttributeAccessor<ClassName>( \
+        [](const ClassName& self, My3D::Variant& value) { value = self.variable; }, \
+        [](ClassName& self, const My3D::Variant& value) { self.variable = vale.Get<typeName>(); self.postSetCallback(); })
+
+    /// Make get/set attribute accessor
+    #define MY3D_MAKE_GET_SET_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName) My3D::MakeVariantAttributeAccessor<ClassName>( \
+        [](const ClassName& self, My3D::Variant& value) { value = self.getFunction(); }, \
+        [](ClassName& self, const My3D::Variant& value) { self.setFunction(value.Get<typeName>()); })
+
+    /// Make member enum attribute accessor
+    #define MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR(variable) My3D::MakeVariantAttributeAccessor<ClassName>( \
+        [](const ClassName& self, My3D::Variant& value) { value = static_cast<int>(self.variable); }, \
+        [](ClassName& self, const My3D::Variant& value) { self.variable = static_cast<decltype(self.variable)>(value.Get<int>()); })
+
+    /// Make member enum attribute accessor with custom post-set callback.
+    #define MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR_EX(variable) My3D::MakeVariantAttributeAccessor<ClassName>( \
+        [](const ClassName& self, My3D::Variant& value) { value = static_cast<int>(self.variable); }, \
+        [](ClassName& self, const My3D::Variant& value) { self.variable = static_cast<decltype(self.variable)>(value.Get<int>()); self.postSetCallback(); })
+
+    /// Make get/set enum attribute accessor.
+    #define MY3D_MAKE_GET_SET_ENUM_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName) My3D::MakeVariantAttributeAccessor<ClassName>( \
+        [](const ClassName& self, My3D::Variant& value) { value = static_cast<int>(self.getFunction()); }, \
+        [](ClassName& self, const My3D::Variant& value) { self.setFunction(static_cast<typeName>(value.Get<int>())); })
+
+    /// Attribute metadata
+    namespace AttributeMetadata
+    {
+        /// Names of vector struct elements. StringVector.
+        static const StringHash P_VECTOR_STRUCT_ELEMENTS("VectorStructElements");
+    }
+
+    // The following macros need to be used within a class member function such as ClassName::RegisterObject().
+    // A variable called "context" needs to exist in the current scope and point to a valid Context object.
+
+    /// Copy attributes from a base class.
+    #define MY3D_COPY_BASE_ATTRIBUTES(sourceClassName) context->CopyBaseAttributes<sourceClassName, ClassName>()
+    /// Update the default value of an already registered attribute
+    #define MY3D_UPDATE_ATTRIBUTE_DEFAULT_VALUE(name, defaultValue) context->UpdateAttributeDefaultValue<ClassName>(name, defaultValue)
+    /// Remove attribute by name
+    #define MY3D_REMOVE_ATTRIBUTE(name) context->RemoveAttribute<ClassName>(name)
+    /// Define an object member attribute
+    #define MY3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) context->ResgiterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::GetVariantType<typeName>(), name, MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable), nullptr, defaultValue, mode))
+    /// Define an object member attribute. Post-set member function callback is called when attribute set
+    #define MY3D_ATTRIBUTE_EX(name, typeName, variable, postSetCallback, defaultValue, mode) context->ResgiterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::GetVariantType<typeName>(), name, MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typeName, variable, postSetCallback), nullptr, defaultValue, mode))
+    /// Define an attribute that uses get and set functions
+    #define MY3D_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::GetVariantType<typeName>(), name, MY3D_MAKE_GET_SET_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName), nullptr, defaultValue, mode))
+
+    /// Define an object member attribute. Zero-based enum values are mapped to names through an array of C string pointers.
+    #define MY3D_ENUM_ATTRIBUTE(name, variable, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::VAR_INT, name, MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR(variable), enumNames, static_cast<int>(defaultValue), mode))
+    /// Define an object member attribute. Zero-based enum values are mapped to names through an array of C string pointers. Post-set member function callback is called when attribute set.
+    #define MY3D_ENUM_ATTRIBUTE_EX(name, variable, postSetCallback, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::VAR_INT, name, MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR_EX(variable, postSetCallback), enumNames, static_cast<int>(defaultValue), mode))
+    /// Define an attribute that uses get and set functions. Zero-based enum values are mapped to names through an array of C string pointers.
+    #define MY3D_ENUM_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::VAR_INT, name, MY3D_MAKE_GET_SET_ENUM_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName), enumNames, static_cast<int>(defaultValue), mode))
+
+    /// Define an attribute with custom setter and getter.
+    #define MY3D_CUSTOM_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::GetVariantType<typeName >(), name, My3D::MakeVariantAttributeAccessor<ClassName>(getFunction, setFunction), nullptr, defaultValue, mode))
+    /// Define an enum attribute with custom setter and getter. Zero-based enum values are mapped to names through an array of C string pointers.
+    #define MY3D_CUSTOM_ENUM_ATTRIBUTE(name, getFunction, setFunction, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+        My3D::VAR_INT, name, My3D::MakeVariantAttributeAccessor<ClassName>(getFunction, setFunction), enumNames, static_cast<int>(defaultValue), mode))
 }

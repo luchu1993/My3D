@@ -8,6 +8,7 @@
 #include "IO/Deserializer.h"
 #include "IO/Serializer.h"
 #include "Resource/XMLElement.h"
+#include "Scene/SceneEvents.h"
 
 
 namespace My3D
@@ -412,6 +413,109 @@ namespace My3D
         }
 
         return true;
+    }
+
+    bool Serializable::SetAttribute(unsigned int index, const Variant& value)
+    {
+        const Vector<AttributeInfo>* attributes = GetAttributes();
+        if (!attributes)
+        {
+            MY3D_LOGERROR(GetTypeName() + " has no attributes");
+            return false;
+        }
+
+        if (index >= attributes->Size())
+        {
+            MY3D_LOGERROR("Attribute index out of bounds");
+            return false;
+        }
+
+        const AttributeInfo& attr = attributes->At(index);
+
+        // Check that the new value's type matches the attribute type
+        if (value.GetType() == attr.type_)
+        {
+            OnSetAttribute(attr, value);
+            return true;
+        }
+        else
+        {
+            MY3D_LOGERROR("Could not set attribute " + attr.name_ + ": expected type " + Variant::GetTypeName(attr.type_) +
+                            " but got " + value.GetTypeName());
+            return false;
+        }
+    }
+
+    bool Serializable::SetAttribute(const String& name, const Variant& value)
+    {
+        const Vector<AttributeInfo>* attributes = GetAttributes();
+        if (!attributes)
+        {
+            MY3D_LOGERROR(GetTypeName() + " has no attributes");
+            return false;
+        }
+
+        for (Vector<AttributeInfo>::ConstIterator i = attributes->Begin(); i != attributes->End(); ++i)
+        {
+            if (!i->name_.Compare(name, true))
+            {
+                // Check that the new value's type matches the attribute type
+                if (value.GetType() == i->type_)
+                {
+                    OnSetAttribute(*i, value);
+                    return true;
+                }
+                else
+                {
+                    MY3D_LOGERROR("Could not set attribute " + i->name_ + ": expected type " + Variant::GetTypeName(i->type_)
+                                    + " but got " + value.GetTypeName());
+                    return false;
+                }
+            }
+        }
+
+        MY3D_LOGERROR("Could not find attribute " + name + " in " + GetTypeName());
+        return false;
+    }
+
+    void Serializable::ResetToDefault()
+    {
+        const Vector<AttributeInfo>* attributes = GetAttributes();
+        if (!attributes)
+            return;
+
+        for (unsigned i = 0; i < attributes->Size(); ++i)
+        {
+            const AttributeInfo& attr = attributes->At(i);
+            if (attr.mode_ & (AM_NOEDIT | AM_NODEID | AM_COMPONENTID | AM_NODEIDVECTOR))
+                continue;
+
+            Variant defaultValue = GetInstanceDefault(attr.name_);
+            if (defaultValue.IsEmpty())
+                defaultValue = attr.defaultValue_;
+
+            OnSetAttribute(attr, defaultValue);
+        }
+    }
+
+    void Serializable::RemoveInstanceDefault()
+    {
+        instanceDefaultValues_.Reset();
+    }
+
+    void Serializable::SetTemporary(bool enable)
+    {
+        if (enable != temporary_)
+        {
+            temporary_ = enable;
+
+            using namespace TemporaryChanged;
+
+            VariantMap& eventData = GetEventDataMap();
+            eventData[P_SERIALIZABLE] = this;
+
+            SendEvent(E_TEMPORARYCHANGED, eventData);
+        }
     }
 
     Variant Serializable::GetAttribute(unsigned int index) const

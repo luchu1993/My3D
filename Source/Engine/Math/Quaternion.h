@@ -70,6 +70,21 @@ namespace My3D
         {
             return Quaternion(w_ * rhs, x_ * rhs, y_ * rhs, z_ * rhs);
         }
+        /// Return negation.
+        Quaternion operator -() const
+        {
+            return Quaternion(-w_, -x_, -y_, -z_);
+        }
+        /// Add a quaternion.
+        Quaternion operator +(const Quaternion& rhs) const
+        {
+            return Quaternion(w_ + rhs.w_, x_ + rhs.x_, y_ + rhs.y_, z_ + rhs.z_);
+        }
+        /// Subtract a quaternion.
+        Quaternion operator -(const Quaternion& rhs) const
+        {
+            return Quaternion(w_ - rhs.w_, x_ - rhs.x_, y_ - rhs.y_, z_ - rhs.z_);
+        }
         /// Test for equality with another quaternion without epsilon.
         bool operator ==(const Quaternion& rhs) const
         {
@@ -117,6 +132,25 @@ namespace My3D
         float LengthSquared() const
         {
             return w_ * w_ + x_ * x_ + y_ * y_ + z_ * z_;
+        }
+        /// Calculate dot product.
+        float DotProduct(const Quaternion& rhs) const
+        {
+            return w_ * rhs.w_ + x_ * rhs.x_ + y_ * rhs.y_ + z_ * rhs.z_;
+        }
+        /// Test for equality with another quaternion with epsilon.
+        bool Equals(const Quaternion& rhs) const
+        {
+            return My3D::Equals(w_, rhs.w_) && My3D::Equals(x_, rhs.x_) && My3D::Equals(y_, rhs.y_) && My3D::Equals(z_, rhs.z_);
+        }
+        /// Return whether any element is NaN.
+        bool IsNaN() const { return My3D::IsNaN(w_) || My3D::IsNaN(x_) || My3D::IsNaN(y_) || My3D::IsNaN(z_); }
+        /// Return whether any element is Inf.
+        bool IsInf() const { return My3D::IsInf(w_) || My3D::IsInf(x_) || My3D::IsInf(y_) || My3D::IsInf(z_); }
+        /// Return conjugate.
+        Quaternion Conjugate() const
+        {
+            return Quaternion(w_, -x_, -y_, -z_);
         }
         /// Return Euler angles in degrees
         Vector3 EulerAngles() const;

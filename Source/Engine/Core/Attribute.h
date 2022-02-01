@@ -44,9 +44,9 @@ namespace My3D
     {
     public:
         /// Get the attribute
-        virtual void Get(const Serializable* ptr, Variant& dest) = 0;
+        virtual void Get(const Serializable* ptr, Variant& dest) const = 0;
         /// Set the attribute
-        virtual void Set(const Serializable* ptr, const Variant& src) = 0;
+        virtual void Set(Serializable* ptr, const Variant& src) = 0;
     };
 
     /// Description of automatically serializable variable
