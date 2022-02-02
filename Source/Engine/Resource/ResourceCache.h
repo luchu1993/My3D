@@ -74,6 +74,14 @@ namespace My3D
         bool AddManualResource(Resource* resource);
         /// Open and return a file from the resource load paths or from inside a package file. If not found, use a fallback search with absolute path. Return null if fails. Can be called from outside the main thread.
         SharedPtr<File> GetFile(const String& name, bool sendEventOnFailure = true);
+        /// Return a resource by type and name. Load if not loaded yet. Return null if not found or if fails, unless SetReturnFailedResources(true) has been called. Can be called only from the main thread.
+        Resource* GetResource(StringHash type, const String& name, bool sendEventOnFailure = true);
+        /// Return all loaded resources of a specific type.
+        void GetResources(PODVector<Resource*>& result, StringHash type) const;
+        /// Return an already loaded resource of specific type & name, or null if not found. Will not load if does not exist.
+        Resource* GetExistingResource(StringHash type, const String& name);
+        /// Return all loaded resources.
+        const HashMap<StringHash, ResourceGroup>& GetAllResources() const { return resourceGroups_; }
         /// Remove unsupported constructs from the resource name to prevent ambiguity, and normalize absolute filename to resource path relative if possible.
         String SanitateResourceName(const String& name) const;
         /// Return whether automatic resource reloading is enabled.
@@ -83,7 +91,16 @@ namespace My3D
         /// Return whether when getting resources should check package files or directories first.
         bool GetSearchPackagesFirst() const { return searchPackagesFirst_; }
 
+        /// Template version of returning a resource by name.
+        template <class T> T* GetResource(const String& name, bool sendEventOnFailure = true);
+        /// Template version of returning an existing resource by name.
+        template <class T> T* GetExistingResource(const String& name);
+
     private:
+        /// Find a resource.
+        const SharedPtr<Resource>& FindResource(StringHash type, StringHash nameHash);
+        /// Find a resource by name only. Searches all type groups.
+        const SharedPtr<Resource>& FindResource(StringHash nameHash);
         /// Update a resource group. Recalculate memory use and release resources if over memory budget.
         void UpdateResourceGroup(StringHash type);
         /// Handle begin frame event. Automatic resource reloads and the finalization of background loaded resources are processed here.
@@ -116,6 +133,18 @@ namespace My3D
         /// Resource routing flag to prevent endless recursion.
         mutable bool isRouting_;
     };
+
+    template <typename T> T* ResourceCache::GetExistingResource(const String& name)
+    {
+        StringHash type = T::GetTypeStatic();
+        return static_cast<T*>(GetExistingResource(type, name));
+    }
+
+    template <typename T> T* ResourceCache::GetResource(const String& name, bool sendEventOnFailure)
+    {
+        StringHash type = T::GetTypeStatic();
+        return static_cast<T*>(GetResource(type, name, sendEventOnFailure));
+    }
 
     /// Register Resource library subsystems and objects.
     void MY3D_API RegisterResourceLibrary(Context* context);

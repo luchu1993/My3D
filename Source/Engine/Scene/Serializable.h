@@ -130,34 +130,34 @@ namespace My3D
     }
 
     /// Make member attribute accessor
-    #define MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable) My3D::MakeVariantAttributeAccessor<ClassName>(\
-        [](const ClassName& self, My3D::Variant& value) { value = self.variable; }, \
-        [](ClassName& self, const My3D::Variant& value) { self.variable = value.Get<typeName>(); })
+    #define MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable) My3D::MakeVariantAttributeAccessor<Type>(\
+        [](const Type& self, My3D::Variant& value) { value = self.variable; }, \
+        [](Type& self, const My3D::Variant& value) { self.variable = value.Get<typeName>(); })
 
     /// Make member attribute accessor with custom post-set callback
-    #define MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typename, variable, postSetCallback) My3D::MakeVariantAttributeAccessor<ClassName>( \
-        [](const ClassName& self, My3D::Variant& value) { value = self.variable; }, \
-        [](ClassName& self, const My3D::Variant& value) { self.variable = vale.Get<typeName>(); self.postSetCallback(); })
+    #define MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typeName, variable, postSetCallback) My3D::MakeVariantAttributeAccessor<Type>( \
+        [](const Type& self, My3D::Variant& value) { value = self.variable; }, \
+        [](Type& self, const My3D::Variant& value) { self.variable = vale.Get<typeName>(); self.postSetCallback(); })
 
     /// Make get/set attribute accessor
-    #define MY3D_MAKE_GET_SET_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName) My3D::MakeVariantAttributeAccessor<ClassName>( \
-        [](const ClassName& self, My3D::Variant& value) { value = self.getFunction(); }, \
-        [](ClassName& self, const My3D::Variant& value) { self.setFunction(value.Get<typeName>()); })
+    #define MY3D_MAKE_GET_SET_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName) My3D::MakeVariantAttributeAccessor<Type>( \
+        [](const Type& self, My3D::Variant& value) { value = self.getFunction(); }, \
+        [](Type& self, const My3D::Variant& value) { self.setFunction(value.Get<typeName>()); })
 
     /// Make member enum attribute accessor
-    #define MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR(variable) My3D::MakeVariantAttributeAccessor<ClassName>( \
-        [](const ClassName& self, My3D::Variant& value) { value = static_cast<int>(self.variable); }, \
-        [](ClassName& self, const My3D::Variant& value) { self.variable = static_cast<decltype(self.variable)>(value.Get<int>()); })
+    #define MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR(variable) My3D::MakeVariantAttributeAccessor<Type>( \
+        [](const Type& self, My3D::Variant& value) { value = static_cast<int>(self.variable); }, \
+        [](Type& self, const My3D::Variant& value) { self.variable = static_cast<decltype(self.variable)>(value.Get<int>()); })
 
     /// Make member enum attribute accessor with custom post-set callback.
-    #define MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR_EX(variable) My3D::MakeVariantAttributeAccessor<ClassName>( \
-        [](const ClassName& self, My3D::Variant& value) { value = static_cast<int>(self.variable); }, \
-        [](ClassName& self, const My3D::Variant& value) { self.variable = static_cast<decltype(self.variable)>(value.Get<int>()); self.postSetCallback(); })
+    #define MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR_EX(variable) My3D::MakeVariantAttributeAccessor<Type>( \
+        [](const Type& self, My3D::Variant& value) { value = static_cast<int>(self.variable); }, \
+        [](Type& self, const My3D::Variant& value) { self.variable = static_cast<decltype(self.variable)>(value.Get<int>()); self.postSetCallback(); })
 
     /// Make get/set enum attribute accessor.
-    #define MY3D_MAKE_GET_SET_ENUM_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName) My3D::MakeVariantAttributeAccessor<ClassName>( \
-        [](const ClassName& self, My3D::Variant& value) { value = static_cast<int>(self.getFunction()); }, \
-        [](ClassName& self, const My3D::Variant& value) { self.setFunction(static_cast<typeName>(value.Get<int>())); })
+    #define MY3D_MAKE_GET_SET_ENUM_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName) My3D::MakeVariantAttributeAccessor<Type>( \
+        [](const Type& self, My3D::Variant& value) { value = static_cast<int>(self.getFunction()); }, \
+        [](Type& self, const My3D::Variant& value) { self.setFunction(static_cast<typeName>(value.Get<int>())); })
 
     /// Attribute metadata
     namespace AttributeMetadata
@@ -170,35 +170,35 @@ namespace My3D
     // A variable called "context" needs to exist in the current scope and point to a valid Context object.
 
     /// Copy attributes from a base class.
-    #define MY3D_COPY_BASE_ATTRIBUTES(sourceClassName) context->CopyBaseAttributes<sourceClassName, ClassName>()
+    #define MY3D_COPY_BASE_ATTRIBUTES(baseType) context->CopyBaseAttributes<baseType, Type>()
     /// Update the default value of an already registered attribute
-    #define MY3D_UPDATE_ATTRIBUTE_DEFAULT_VALUE(name, defaultValue) context->UpdateAttributeDefaultValue<ClassName>(name, defaultValue)
+    #define MY3D_UPDATE_ATTRIBUTE_DEFAULT_VALUE(name, defaultValue) context->UpdateAttributeDefaultValue<Type>(name, defaultValue)
     /// Remove attribute by name
-    #define MY3D_REMOVE_ATTRIBUTE(name) context->RemoveAttribute<ClassName>(name)
+    #define MY3D_REMOVE_ATTRIBUTE(name) context->RemoveAttribute<Type>(name)
     /// Define an object member attribute
-    #define MY3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) context->ResgiterAttribute<ClassName>(My3D::AttributeInfo( \
+    #define MY3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) context->ResgiterAttribute<Type>(My3D::AttributeInfo( \
         My3D::GetVariantType<typeName>(), name, MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable), nullptr, defaultValue, mode))
     /// Define an object member attribute. Post-set member function callback is called when attribute set
-    #define MY3D_ATTRIBUTE_EX(name, typeName, variable, postSetCallback, defaultValue, mode) context->ResgiterAttribute<ClassName>(My3D::AttributeInfo( \
+    #define MY3D_ATTRIBUTE_EX(name, typeName, variable, postSetCallback, defaultValue, mode) context->ResgiterAttribute<Type>(My3D::AttributeInfo( \
         My3D::GetVariantType<typeName>(), name, MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typeName, variable, postSetCallback), nullptr, defaultValue, mode))
     /// Define an attribute that uses get and set functions
-    #define MY3D_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+    #define MY3D_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \
         My3D::GetVariantType<typeName>(), name, MY3D_MAKE_GET_SET_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName), nullptr, defaultValue, mode))
 
     /// Define an object member attribute. Zero-based enum values are mapped to names through an array of C string pointers.
-    #define MY3D_ENUM_ATTRIBUTE(name, variable, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+    #define MY3D_ENUM_ATTRIBUTE(name, variable, enumNames, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \
         My3D::VAR_INT, name, MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR(variable), enumNames, static_cast<int>(defaultValue), mode))
     /// Define an object member attribute. Zero-based enum values are mapped to names through an array of C string pointers. Post-set member function callback is called when attribute set.
-    #define MY3D_ENUM_ATTRIBUTE_EX(name, variable, postSetCallback, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+    #define MY3D_ENUM_ATTRIBUTE_EX(name, variable, postSetCallback, enumNames, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \
         My3D::VAR_INT, name, MY3D_MAKE_MEMBER_ENUM_ATTRIBUTE_ACCESSOR_EX(variable, postSetCallback), enumNames, static_cast<int>(defaultValue), mode))
     /// Define an attribute that uses get and set functions. Zero-based enum values are mapped to names through an array of C string pointers.
-    #define MY3D_ENUM_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
+    #define MY3D_ENUM_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, enumNames, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \
         My3D::VAR_INT, name, MY3D_MAKE_GET_SET_ENUM_ATTRIBUTE_ACCESSOR(getFunction, setFunction, typeName), enumNames, static_cast<int>(defaultValue), mode))
 
     /// Define an attribute with custom setter and getter.
-    #define MY3D_CUSTOM_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
-        My3D::GetVariantType<typeName >(), name, My3D::MakeVariantAttributeAccessor<ClassName>(getFunction, setFunction), nullptr, defaultValue, mode))
+    #define MY3D_CUSTOM_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \
+        My3D::GetVariantType<typeName>(), name, My3D::MakeVariantAttributeAccessor<Type>(getFunction, setFunction), nullptr, defaultValue, mode))
     /// Define an enum attribute with custom setter and getter. Zero-based enum values are mapped to names through an array of C string pointers.
     #define MY3D_CUSTOM_ENUM_ATTRIBUTE(name, getFunction, setFunction, enumNames, defaultValue, mode) context->RegisterAttribute<ClassName>(My3D::AttributeInfo( \
-        My3D::VAR_INT, name, My3D::MakeVariantAttributeAccessor<ClassName>(getFunction, setFunction), enumNames, static_cast<int>(defaultValue), mode))
+        My3D::VAR_INT, name, My3D::MakeVariantAttributeAccessor<Type>(getFunction, setFunction), enumNames, static_cast<int>(defaultValue), mode))
 }

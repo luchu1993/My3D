@@ -6,6 +6,7 @@
 #include "Resource/XMLFile.h"
 #include "Resource/BackgroundLoader.h"
 #include "Core/CoreEvents.h"
+#include "Core/Context.h"
 #include "IO/FileSystem.h"
 #include "IO/PackageFile.h"
 #include "IO/Log.h"
@@ -14,6 +15,28 @@
 
 namespace My3D
 {
+    static const char* checkDirs[] =
+    {
+        "Fonts",
+        "Materials",
+        "Models",
+        "Music",
+        "Objects",
+        "Particle",
+        "PostProcess",
+        "RenderPaths",
+        "Scenes",
+        "Scripts",
+        "Sounds",
+        "Shaders",
+        "Techniques",
+        "Textures",
+        "UI",
+        nullptr
+    };
+
+    static const SharedPtr<Resource> noResource;
+
     ResourceCache::ResourceCache(Context *context)
         : Object(context)
     {
@@ -104,6 +127,112 @@ namespace My3D
         return SharedPtr<File>();
     }
 
+    Resource* ResourceCache::GetResource(StringHash type, const String& name, bool sendEventOnFailure)
+    {
+        String sanitatedName = SanitateResourceName(name);
+
+        if (!Thread::IsMainThread())
+        {
+            MY3D_LOGERROR("Attempted to get resource " + sanitatedName + " from outside the main thread");
+            return nullptr;
+        }
+
+        // If empty name, return null pointer immediately
+        if (sanitatedName.Empty())
+            return nullptr;
+
+        StringHash nameHash(sanitatedName);
+
+        // Check if the resource is being background loaded but is now needed immediately
+        backgroundLoader_->WaitForResource(type, nameHash);
+
+        const SharedPtr<Resource>& existing = FindResource(type, nameHash);
+        if (existing)
+            return existing;
+
+        SharedPtr<Resource> resource;
+        // Make sure the pointer is non-null and is a Resource subclass
+        resource = DynamicCast<Resource>(context_->CreateObject(type));
+        if (!resource)
+        {
+            MY3D_LOGERROR("Could not load unknown resource type " + String(type));
+
+            if (sendEventOnFailure)
+            {
+                using namespace UnknownResourceType;
+
+                VariantMap& eventData = GetEventDataMap();
+                eventData[P_RESOURCETYPE] = type;
+                SendEvent(E_UNKNOWNRESOURCETYPE, eventData);
+            }
+
+            return nullptr;
+        }
+
+        // Attempt to load the resource
+        SharedPtr<File> file = GetFile(sanitatedName, sendEventOnFailure);
+        if (!file)
+            return nullptr;   // Error is already logged
+
+        MY3D_LOGDEBUG("Loading resource " + sanitatedName);
+        resource->SetName(sanitatedName);
+
+        if (!resource->Load(*(file.Get())))
+        {
+            // Error should already been logged by corresponding resource descendant class
+            if (sendEventOnFailure)
+            {
+                using namespace LoadFailed;
+
+                VariantMap& eventData = GetEventDataMap();
+                eventData[P_RESOURCENAME] = sanitatedName;
+                SendEvent(E_LOADFAILED, eventData);
+            }
+
+            if (!returnFailedResources_)
+                return nullptr;
+        }
+
+        // Store to cache
+        resource->ResetUseTimer();
+        resourceGroups_[type].resources_[nameHash] = resource;
+        UpdateResourceGroup(type);
+
+        return resource;
+    }
+
+    void ResourceCache::GetResources(PODVector<Resource *>& result, StringHash type) const
+    {
+        result.Clear();
+        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
+        if (i != resourceGroups_.End())
+        {
+            for (HashMap<StringHash, SharedPtr<Resource> >::ConstIterator j = i->second_.resources_.Begin();
+                 j != i->second_.resources_.End(); ++j)
+                result.Push(j->second_);
+        }
+    }
+
+    Resource* ResourceCache::GetExistingResource(StringHash type, const String& name)
+    {
+        String sanitatedName = SanitateResourceName(name);
+
+        if (!Thread::IsMainThread())
+        {
+            MY3D_LOGERROR("Attempted to get resource " + sanitatedName + " from outside the main thread");
+            return nullptr;
+        }
+
+        // If empty name, return null pointer immediately
+        if (sanitatedName.Empty())
+            return nullptr;
+
+        StringHash nameHash(sanitatedName);
+
+        const SharedPtr<Resource>& existing = FindResource(type, nameHash);
+        return existing;
+    }
+
     String ResourceCache::SanitateResourceName(const String &name) const
     {
         // Sanitate unsupported constructs from the resource name
@@ -135,9 +264,32 @@ namespace My3D
         return sanitatedName.Trimmed();
     }
 
-    void RegisterResourceLibrary(Context* context)
+    const SharedPtr<Resource>& ResourceCache::FindResource(StringHash type, StringHash nameHash)
     {
-        XMLFile::RegisterObject(context);
+        MutexLock lock(resourceMutex_);
+
+        HashMap<StringHash, ResourceGroup>::Iterator i = resourceGroups_.Find(type);
+        if (i == resourceGroups_.End())
+            return noResource;
+        HashMap<StringHash, SharedPtr<Resource> >::Iterator j = i->second_.resources_.Find(nameHash);
+        if (j == i->second_.resources_.End())
+            return noResource;
+
+        return j->second_;
+    }
+
+    const SharedPtr<Resource>& ResourceCache::FindResource(StringHash nameHash)
+    {
+        MutexLock lock(resourceMutex_);
+
+        for (HashMap<StringHash, ResourceGroup>::Iterator i = resourceGroups_.Begin(); i != resourceGroups_.End(); ++i)
+        {
+            HashMap<StringHash, SharedPtr<Resource> >::Iterator j = i->second_.resources_.Find(nameHash);
+            if (j != i->second_.resources_.End())
+                return j->second_;
+        }
+
+        return noResource;
     }
 
     void ResourceCache::UpdateResourceGroup(StringHash type)
@@ -215,5 +367,10 @@ namespace My3D
         }
 
         return nullptr;
+    }
+
+    void RegisterResourceLibrary(Context* context)
+    {
+        XMLFile::RegisterObject(context);
     }
 }
