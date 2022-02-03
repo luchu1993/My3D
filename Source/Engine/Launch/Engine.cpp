@@ -279,8 +279,7 @@ bool Engine::HasParameter(const VariantMap &parameters, const String &parameter)
     return parameters.Find(nameHash) != parameters.End();
 }
 
-const Variant &
-Engine::GetParameter(const VariantMap &parameters, const String &parameter, const Variant &defaultValue)
+const Variant& Engine::GetParameter(const VariantMap &parameters, const String &parameter, const Variant &defaultValue)
 {
     StringHash nameHash(parameter);
     auto it = parameters.Find(nameHash);

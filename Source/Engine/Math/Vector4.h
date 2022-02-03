@@ -4,11 +4,12 @@
 
 #pragma once
 
-#include "Vector3.h"
+#include "Math/Vector3.h"
+
 
 namespace My3D
 {
-
+/// Four-dimensional vector.
 class MY3D_API Vector4
 {
 public:
@@ -122,9 +123,9 @@ public:
         return *this;
     }
     /// Return const value by index.
-    float operator[](unsigned index) const { return (&x_)[index]; }
+    float operator [](unsigned index) const { return (&x_)[index]; }
     /// Return mutable value by index.
-    float& operator[](unsigned index) { return (&x_)[index]; }
+    float& operator [](unsigned index) { return (&x_)[index]; }
     /// Calculate dot product.
     float DotProduct(const Vector4& rhs) const { return x_ * rhs.x_ + y_ * rhs.y_ + z_ * rhs.z_ + w_ * rhs.w_; }
     /// Calculate absolute dot product.
