@@ -22,6 +22,8 @@ public:
 
     /// initialize engine
     bool Initialize(const VariantMap& parameters);
+    /// Reinitialize resource cache subsystem using parameters given. Implicitly called by Initialize. Return true if successful.
+    bool InitializeResourceCache(const VariantMap& parameters, bool removeOld = true);
     /// Run one frame
     void RunFrame();
     /// Set minimum frames per second.  If FPS goes lower than this, time will appear to slow down.

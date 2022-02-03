@@ -15,6 +15,7 @@
 #include "Input/Input.h"
 #include "Core/ProcessUtils.h"
 #include "Core/WorkQueue.h"
+#include "Resource/ResourceCache.h"
 
 
 #include <cassert>
@@ -45,6 +46,7 @@ Engine::Engine(Context *context)
     context_->RegisterSubsystem<WorkQueue>();
     context_->RegisterSubsystem<Input>();
     context_->RegisterSubsystem<FileSystem>();
+    context_->RegisterSubsystem<ResourceCache>();
 
     SubscribeToEvent(E_EXITREQUESTED, MY3D_HANDLER(Engine, HandleExitRequested));
 }
@@ -85,6 +87,11 @@ bool Engine::Initialize(const VariantMap& parameters)
         MY3D_LOGINFOF("Created %u worker thread%s", numThreads, numThreads > 1 ? "s" : "");
     }
 
+    // Add resource paths
+    if (!InitializeResourceCache(parameters, false))
+        return false;
+
+    auto* cache = GetSubsystem<ResourceCache>();
     auto* fileSystem = GetSubsystem<FileSystem>();
 
     // Initialize graphics & audio output
@@ -127,6 +134,11 @@ bool Engine::Initialize(const VariantMap& parameters)
 
     MY3D_LOGINFO("Initialized engine");
     initialized_ = true;
+    return true;
+}
+
+bool Engine::InitializeResourceCache(const VariantMap& parameters, bool removeOld /*= true*/)
+{
     return true;
 }
 

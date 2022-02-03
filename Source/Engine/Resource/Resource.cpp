@@ -21,6 +21,8 @@ namespace My3D
 
     bool Resource::Load(Deserializer &source)
     {
+        // If we are loading synchronously in a non-main thread, behave as if async loading (for example use
+        // GetTempResource() instead of GetResource() to load resource dependencies)
         SetAsyncLoadState(Thread::IsMainThread() ? ASYNC_DONE : ASYNC_LOADING);
 
         bool success = BeginLoad(source);
