@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include "Container/String.h"
-#include "Math/Matrix3.h"
 #include "Math/Matrix4.h"
 #include "Math/Vector4.h"
 
@@ -311,6 +309,8 @@ namespace My3D
         {
             return Vector3(m03_, m13_, m23_);
         }
+        /// Return the rotation part.
+        Quaternion Rotation() const { return Quaternion(RotationMatrix()); }
         /// Return the scaling part.
         Vector3 Scale() const
         {
@@ -345,8 +345,40 @@ namespace My3D
 
             return true;
         }
+        /// Return decomposition to translation, rotation and scale.
+        void Decompose(Vector3& translation, Quaternion& rotation, Vector3& scale) const;
+        /// Return inverse.
+        Matrix3x4 Inverse() const;
         /// Return float data.
         const float* Data() const { return &m00_; }
+        /// Return matrix element.
+        float Element(unsigned i, unsigned j) const { return Data()[i * 4 + j]; }
+        /// Return matrix row.
+        Vector4 Row(unsigned i) const { return Vector4(Element(i, 0), Element(i, 1), Element(i, 2), Element(i, 3)); }
+        /// Return matrix column.
+        Vector3 Column(unsigned j) const { return Vector3(Element(0, j), Element(1, j), Element(2, j)); }
+        /// Return whether any element is NaN.
+        bool IsNaN() const
+        {
+            const float* data = Data();
+            for (unsigned i = 0; i < 12; ++i)
+            {
+                if (My3D::IsNaN(data[i]))
+                    return true;
+            }
+            return false;
+        }
+        /// Return whether any element is Inf.
+        bool IsInf() const
+        {
+            const float* data = Data();
+            for (unsigned i = 0; i < 12; ++i)
+            {
+                if (My3D::IsInf(data[i]))
+                    return true;
+            }
+            return false;
+        }
         /// Return as string.
         String ToString() const;
 
@@ -368,4 +400,7 @@ namespace My3D
         /// Identity matrix.
         static const Matrix3x4 IDENTITY;
     };
+
+    /// Multiply a 3x4 matrix with a scalar.
+    inline Matrix3x4 operator *(float lhs, const Matrix3x4& rhs) { return rhs * lhs; }
 }

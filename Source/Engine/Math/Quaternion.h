@@ -65,6 +65,11 @@ namespace My3D
         {
             FromEulerAngles(angles.x_, angles.y_, angles.z_);
         }
+        /// Construct from a rotation matrix.
+        explicit Quaternion(const Matrix3& matrix) noexcept
+        {
+            FromRotationMatrix(matrix);
+        }
         /// Multiply with a scalar
         Quaternion operator*(float rhs) const
         {
@@ -101,7 +106,7 @@ namespace My3D
         /// Define from orthonormal axes
         void FromAxes(const Vector3& xAxis, const Vector3& yAxis, const Vector3& zAxis);
         /// Define from a rotation matrix
-        void FromRotaionMatrix(const Matrix3& matrix);
+        void FromRotationMatrix(const Matrix3& matrix);
         /// Define from a direction to look in and an up direction.
         bool FromLookRotation(const Vector3& direction, const Vector3& up = Vector3::UP);
         /// Normalize to unit length

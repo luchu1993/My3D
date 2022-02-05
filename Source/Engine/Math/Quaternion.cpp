@@ -27,6 +27,11 @@ namespace My3D
 
     }
 
+    void Quaternion::FromRotationMatrix(const Matrix3 &matrix)
+    {
+
+    }
+
     Quaternion Quaternion::Slerp(const Quaternion &rhs, float t) const
     {
         // Favor accuracy for native code builds
