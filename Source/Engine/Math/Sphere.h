@@ -12,6 +12,7 @@ namespace My3D
 /// Sphere in three-dimensional space.
 class MY3D_API Sphere
 {
+public:
     /// Construct undefined.
     Sphere() noexcept
         : center_(Vector3::ZERO)
