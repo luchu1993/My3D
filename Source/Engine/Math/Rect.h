@@ -130,12 +130,26 @@ public:
         if (point.y_ > max_.y_)
             max_.y_ = point.y_;
     }
+    /// Merge a rect.
+    void Merge(const Rect& rect)
+    {
+        if (rect.min_.x_ < min_.x_)
+            min_.x_ = rect.min_.x_;
+        if (rect.min_.y_ < min_.y_)
+            min_.y_ = rect.min_.y_;
+        if (rect.max_.x_ > max_.x_)
+            max_.x_ = rect.max_.x_;
+        if (rect.max_.y_ > max_.y_)
+            max_.y_ = rect.max_.y_;
+    }
     /// Clear to undefined state.
     void Clear()
     {
         min_ = Vector2(M_INFINITY, M_INFINITY);
         max_ = Vector2(-M_INFINITY, -M_INFINITY);
     }
+    /// Clip with another rect.
+    void Clip(const Rect& rect);
     /// Return true if this rect is defined via a previous call to Define() or Merge().
     bool Defined() const
     {
@@ -149,7 +163,24 @@ public:
     Vector2 HalfSize() const { return (max_ - min_) * 0.5f; }
     /// Test for equality with another rect with epsilon.
     bool Equals(const Rect& rhs) const { return min_.Equals(rhs.min_) && max_.Equals(rhs.max_); }
-
+    /// Test whether a point is inside.
+    Intersection IsInside(const Vector2& point) const
+    {
+        if (point.x_ < min_.x_ || point.y_ < min_.y_ || point.x_ > max_.x_ || point.y_ > max_.y_)
+            return OUTSIDE;
+        else
+            return INSIDE;
+    }
+    /// Test if another rect is inside, outside or intersects.
+    Intersection IsInside(const Rect& rect) const
+    {
+        if (rect.max_.x_ < min_.x_ || rect.min_.x_ > max_.x_ || rect.max_.y_ < min_.y_ || rect.min_.y_ > max_.y_)
+            return OUTSIDE;
+        else if (rect.min_.x_ < min_.x_ || rect.max_.x_ > max_.x_ || rect.min_.y_ < min_.y_ || rect.max_.y_ > max_.y_)
+            return INTERSECTS;
+        else
+            return INSIDE;
+    }
     /// Return float data.
     const float* Data() const { return &min_.x_; }
     /// Return as a vector.
@@ -268,16 +299,16 @@ public:
     IntRect operator /(float value) const
     {
         return {
-                static_cast<int>(left_ / value), static_cast<int>(top_ / value),
-                static_cast<int>(right_ / value), static_cast<int>(bottom_ / value)
+            static_cast<int>(left_ / value), static_cast<int>(top_ / value),
+            static_cast<int>(right_ / value), static_cast<int>(bottom_ / value)
         };
     }
     /// Multiply by scalar.
     IntRect operator *(float value) const
     {
         return {
-                static_cast<int>(left_ * value), static_cast<int>(top_ * value),
-                static_cast<int>(right_ * value), static_cast<int>(bottom_ * value)
+            static_cast<int>(left_ * value), static_cast<int>(top_ * value),
+            static_cast<int>(right_ * value), static_cast<int>(bottom_ * value)
         };
     }
     /// Add another rect.
@@ -302,6 +333,30 @@ public:
     int Width() const { return right_ - left_; }
     /// Return height.
     int Height() const { return bottom_ - top_; }
+    /// Test whether a point is inside.
+    Intersection IsInside(const IntVector2& point) const
+    {
+        if (point.x_ < left_ || point.y_ < top_ || point.x_ >= right_ || point.y_ >= bottom_)
+            return OUTSIDE;
+        else
+            return INSIDE;
+    }
+    /// Test if another rect is inside, outside or intersects.
+    Intersection IsInside(const IntRect& rect) const
+    {
+        if (rect.right_ < left_ || rect.left_ >= right_ || rect.bottom_ < top_ || rect.top_ >= bottom_)
+            return OUTSIDE;
+        else if (rect.left_ < left_ || rect.right_ > right_ || rect.top_ < top_ || rect.bottom_ > bottom_)
+            return INTERSECTS;
+        else
+            return INSIDE;
+    }
+    /// Clip with another rect.  Since IntRect does not have an undefined state
+    /// like Rect, return (0, 0, 0, 0) if the result is empty.
+    void Clip(const IntRect& rect);
+    /// Merge a rect.  If this rect was empty, become the other rect.  If the
+    /// other rect is empty, do nothing.
+    void Merge(const IntRect& rect);
     /// Return integer data.
     const int* Data() const { return &left_; }
     /// Return as string.
