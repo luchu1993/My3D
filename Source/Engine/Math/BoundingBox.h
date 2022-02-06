@@ -118,12 +118,69 @@ public:
     void Merge(const Sphere& sphere);
     /// Clip with another bounding box. The box can become degenerate (undefined) as a result.
     void Clip(const BoundingBox& box);
+    /// Transform with a 3x3 matrix.
+    void Transform(const Matrix3& transform);
+    /// Transform with a 3x4 matrix.
+    void Transform(const Matrix3x4& transform);
     /// Clear to undefined state.
     void Clear()
     {
         min_ = Vector3(M_INFINITY, M_INFINITY, M_INFINITY);
         max_ = Vector3(-M_INFINITY, -M_INFINITY, -M_INFINITY);
     }
+    /// Return true if this bounding box is defined via a previous call to Define() or Merge().
+    bool Defined() const
+    {
+        return min_.x_ != M_INFINITY;
+    }
+    /// Return center.
+    Vector3 Center() const { return (max_ + min_) * 0.5f; }
+    /// Return size.
+    Vector3 Size() const { return max_ - min_; }
+    /// Return half-size.
+    Vector3 HalfSize() const { return (max_ - min_) * 0.5f; }
+    /// Return transformed by a 3x3 matrix.
+    BoundingBox Transformed(const Matrix3& transform) const;
+    /// Return transformed by a 3x4 matrix.
+    BoundingBox Transformed(const Matrix3x4& transform) const;
+    /// Return projected by a 4x4 projection matrix.
+    Rect Projected(const Matrix4& projection) const;
+    /// Return distance to point.
+    float DistanceToPoint(const Vector3& point) const;
+    /// Test if a point is inside.
+    Intersection IsInside(const Vector3& point) const
+    {
+        if (point.x_ < min_.x_ || point.x_ > max_.x_ || point.y_ < min_.y_ || point.y_ > max_.y_ ||
+            point.z_ < min_.z_ || point.z_ > max_.z_)
+            return OUTSIDE;
+        else
+            return INSIDE;
+    }
+    /// Test if another bounding box is inside, outside or intersects.
+    Intersection IsInside(const BoundingBox& box) const
+    {
+        if (box.max_.x_ < min_.x_ || box.min_.x_ > max_.x_ || box.max_.y_ < min_.y_ || box.min_.y_ > max_.y_ ||
+            box.max_.z_ < min_.z_ || box.min_.z_ > max_.z_)
+            return OUTSIDE;
+        else if (box.min_.x_ < min_.x_ || box.max_.x_ > max_.x_ || box.min_.y_ < min_.y_ || box.max_.y_ > max_.y_ ||
+                 box.min_.z_ < min_.z_ || box.max_.z_ > max_.z_)
+            return INTERSECTS;
+        else
+            return INSIDE;
+    }
+    /// Test if another bounding box is (partially) inside or outside.
+    Intersection IsInsideFast(const BoundingBox& box) const
+    {
+        if (box.max_.x_ < min_.x_ || box.min_.x_ > max_.x_ || box.max_.y_ < min_.y_ || box.min_.y_ > max_.y_ ||
+            box.max_.z_ < min_.z_ || box.min_.z_ > max_.z_)
+            return OUTSIDE;
+        else
+            return INSIDE;
+    }
+    /// Test if a sphere is inside, outside or intersects.
+    Intersection IsInside(const Sphere& sphere) const;
+    /// Test if a sphere is (partially) inside or outside.
+    Intersection IsInsideFast(const Sphere& sphere) const;
     /// Return as string.
     String ToString() const;
 

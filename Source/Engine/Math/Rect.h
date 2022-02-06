@@ -118,6 +118,18 @@ public:
     {
         min_ = max_ = point;
     }
+    /// Merge a point.
+    void Merge(const Vector2& point)
+    {
+        if (point.x_ < min_.x_)
+            min_.x_ = point.x_;
+        if (point.x_ > max_.x_)
+            max_.x_ = point.x_;
+        if (point.y_ < min_.y_)
+            min_.y_ = point.y_;
+        if (point.y_ > max_.y_)
+            max_.y_ = point.y_;
+    }
     /// Clear to undefined state.
     void Clear()
     {
