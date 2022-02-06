@@ -78,7 +78,7 @@ namespace My3D
 
     BoundingBox BoundingBox::Transformed(const Matrix3 &transform) const
     {
-        return Transformed(transform);
+        return Transformed(Matrix3x4(transform));
     }
 
     BoundingBox BoundingBox::Transformed(const Matrix3x4 &transform) const
