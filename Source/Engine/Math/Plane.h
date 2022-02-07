@@ -43,7 +43,6 @@ public:
 
         Define(dist1.CrossProduct(dist2), v0);
     }
-
     /// Define from a normal vector and a point on the plane.
     void Define(const Vector3& normal, const Vector3& point)
     {
@@ -51,7 +50,6 @@ public:
         absNormal_ = normal_.Abs();
         d_ = -normal_.DotProduct(point);
     }
-
     /// Define from a 4-dimensional vector, where the w coordinate is the plane parameter.
     void Define(const Vector4& plane)
     {
@@ -59,6 +57,28 @@ public:
         absNormal_ = normal_.Abs();
         d_ = plane.w_;
     }
+    /// Transform with a 3x3 matrix.
+    void Transform(const Matrix3& transform);
+    /// Transform with a 3x4 matrix.
+    void Transform(const Matrix3x4& transform);
+    /// Transform with a 4x4 matrix.
+    void Transform(const Matrix4& transform);
+    /// Project a point on the plane.
+    Vector3 Project(const Vector3& point) const { return point - normal_ * (normal_.DotProduct(point) + d_); }
+    /// Return signed distance to a point.
+    float Distance(const Vector3& point) const { return normal_.DotProduct(point) + d_; }
+    /// Reflect a normalized direction vector.
+    Vector3 Reflect(const Vector3& direction) const { return direction - (2.0f * normal_.DotProduct(direction) * normal_); }
+
+    /// Return transformed by a 3x3 matrix.
+    Plane Transformed(const Matrix3& transform) const;
+    /// Return transformed by a 3x4 matrix.
+    Plane Transformed(const Matrix3x4& transform) const;
+    /// Return transformed by a 4x4 matrix.
+    Plane Transformed(const Matrix4& transform) const;
+
+    /// Return as a vector.
+    Vector4 ToVector4() const { return Vector4(normal_, d_); }
 
     /// Plane normal.
     Vector3 normal_;
