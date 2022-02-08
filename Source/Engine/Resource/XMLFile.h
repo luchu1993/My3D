@@ -34,7 +34,10 @@ namespace My3D
 
         /// Load resource from stream. May be called from a worker thread. Return true if successful.
         bool BeginLoad(Deserializer& source) override;
-
+        /// Save resource with default indentation (one tab). Return true if successful.
+        bool Save(Serializer& dest) const override;
+        /// Save resource with user-defined indentation. Return true if successful.
+        bool Save(Serializer& dest, const String& indentation) const;
         /// Deserialize from a string. Return true if successful.
         bool FromString(const String& source);
         /// Clear the document and create a root element.

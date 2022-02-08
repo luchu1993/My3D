@@ -97,6 +97,10 @@ namespace My3D
         void OnObjectAnimationAdded(ObjectAnimation* objectAnimation);
         /// Handle object animation removed.
         void OnObjectAnimationRemoved(ObjectAnimation* objectAnimation);
+        /// Update attribute animations.
+        void UpdateAttributeAnimations(float timeStep);
+        /// Is animated network attribute.
+        bool IsAnimatedNetworkAttribute(const AttributeInfo& attrInfo) const;
         /// Return attribute animation info.
         AttributeAnimationInfo* GetAttributeAnimationInfo(const String& name) const;
         /// Handle attribute animation added.

@@ -35,6 +35,13 @@ namespace My3D
         MY3D_PARAM(P_SERIALIZABLE, Serializable);    // Serializable pointer
     }
 
+    /// Scene attribute animation update.
+    MY3D_EVENT(E_ATTRIBUTEANIMATIONUPDATE, AttributeAnimationUpdate)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_TIMESTEP, TimeStep);            // float
+    }
+
     /// Attribute animation added to object animation.
     MY3D_EVENT(E_ATTRIBUTEANIMATIONADDED, AttributeAnimationAdded)
     {
@@ -47,5 +54,74 @@ namespace My3D
     {
         MY3D_PARAM(P_OBJECTANIMATION, ObjectAnimation);               // Object animation pointer
         MY3D_PARAM(P_ATTRIBUTEANIMATIONNAME, AttributeAnimationName); // String
+    }
+
+    /// A node's name has changed.
+    MY3D_EVENT(E_NODENAMECHANGED, NodeNameChanged)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+    }
+
+    /// A component's enabled state has changed.
+    MY3D_EVENT(E_COMPONENTENABLEDCHANGED, ComponentEnabledChanged)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+        MY3D_PARAM(P_COMPONENT, Component);          // Component pointer
+    }
+    /// A child node has been added to a parent node.
+    MY3D_EVENT(E_NODEADDED, NodeAdded)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_PARENT, Parent);                // Node pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+    }
+
+    /// A child node is about to be removed from a parent node. Note that individual component removal events will not be sent.
+    MY3D_EVENT(E_NODEREMOVED, NodeRemoved)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_PARENT, Parent);                // Node pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+    }
+
+    /// A component has been created to a node.
+    MY3D_EVENT(E_COMPONENTADDED, ComponentAdded)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+        MY3D_PARAM(P_COMPONENT, Component);          // Component pointer
+    }
+
+    /// A component is about to be removed from a node.
+    MY3D_EVENT(E_COMPONENTREMOVED, ComponentRemoved)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+        MY3D_PARAM(P_COMPONENT, Component);          // Component pointer
+    }
+
+    /// A node's enabled state has changed.
+    MY3D_EVENT(E_NODEENABLEDCHANGED, NodeEnabledChanged)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+    }
+
+    /// A node's tag has been added.
+    MY3D_EVENT(E_NODETAGADDED, NodeTagAdded)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+        MY3D_PARAM(P_TAG, Tag);                      // String tag
+    }
+
+    /// A node's tag has been removed.
+    MY3D_EVENT(E_NODETAGREMOVED, NodeTagRemoved)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+        MY3D_PARAM(P_TAG, Tag);                      // String tag
     }
 }

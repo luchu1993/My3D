@@ -76,6 +76,18 @@ namespace My3D
         return true;
     }
 
+    bool XMLFile::Save(Serializer& dest) const
+    {
+        return Save(dest, "\t");
+    }
+
+    bool XMLFile::Save(Serializer& dest, const String& indentation) const
+    {
+        XMLWriter writer(dest);
+        document_->save(writer, indentation.CString());
+        return writer.success_;
+    }
+
     bool XMLFile::FromString(const String& source)
     {
         if (source.Empty())

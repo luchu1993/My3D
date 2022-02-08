@@ -367,6 +367,36 @@ namespace My3D
             SetObjectAttributeAnimation(i->first_, nullptr, WM_LOOP, 1.0f);
     }
 
+    void Animatable::UpdateAttributeAnimations(float timeStep)
+    {
+        if (!animationEnabled_)
+            return;
+
+        // Keep weak pointer to self to check for destruction caused by event handling
+        WeakPtr<Animatable> self(this);
+
+        Vector<String> finishedNames;
+        for (HashMap<String, SharedPtr<AttributeAnimationInfo> >::ConstIterator i = attributeAnimationInfos_.Begin();
+             i != attributeAnimationInfos_.End(); ++i)
+        {
+            bool finished = i->second_->Update(timeStep);
+            // If self deleted as a result of an event sent during animation playback, nothing more to do
+            if (self.Expired())
+                return;
+
+            if (finished)
+                finishedNames.Push(i->second_->GetAttributeInfo().name_);
+        }
+
+        for (unsigned i = 0; i < finishedNames.Size(); ++i)
+            SetAttributeAnimation(finishedNames[i], nullptr);
+    }
+
+    bool Animatable::IsAnimatedNetworkAttribute(const AttributeInfo& attrInfo) const
+    {
+        return animatedNetworkAttributes_.Find(&attrInfo) != animatedNetworkAttributes_.End();
+    }
+
     void Animatable::HandleAttributeAnimationAdded(StringHash eventType, VariantMap& eventData)
     {
         if (!objectAnimation_)
