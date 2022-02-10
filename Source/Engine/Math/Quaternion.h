@@ -65,6 +65,11 @@ namespace My3D
         {
             FromEulerAngles(angles.x_, angles.y_, angles.z_);
         }
+        /// Construct from the rotation difference between two direction vectors.
+        Quaternion(const Vector3& start, const Vector3& end) noexcept
+        {
+            FromRotationTo(start, end);
+        }
         /// Construct from a rotation matrix.
         explicit Quaternion(const Matrix3& matrix) noexcept
         {

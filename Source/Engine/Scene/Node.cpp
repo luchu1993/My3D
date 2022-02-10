@@ -14,13 +14,29 @@ namespace My3D
 {
     Node::Node(Context *context)
         : Animatable(context)
+        , worldTransform_(Matrix3x4::IDENTITY)
+        , dirty_(false)
+        , enabled_(true)
+        , enabledPrev_(true)
+        , networkUpdate_(false)
+        , parent_(nullptr)
+        , scene_(nullptr)
+        , id_(0)
+        , position_(Vector3::ZERO)
+        , rotation_(Quaternion::IDENTITY)
+        , worldRotation_(Quaternion::IDENTITY)
     {
-
+        impl_ = new NodeImpl();
     }
 
     Node::~Node()
     {
+        RemoveAllChildren();
+        RemoveAllComponents();
 
+        // Remove from the scene
+        if (scene_)
+            scene_->NodeRemoved(this);
     }
 
     void Node::RegisterObject(Context *context)
@@ -28,6 +44,11 @@ namespace My3D
         context->RegisterFactory<Node>();
 
         MY3D_ACCESSOR_ATTRIBUTE("Is Enabled", IsEnabled, SetEnabled, bool, true, AM_DEFAULT);
+        MY3D_ACCESSOR_ATTRIBUTE("Name", GetName, SetName, String, String::EMPTY, AM_DEFAULT);
+        MY3D_ACCESSOR_ATTRIBUTE("Tags", GetTags, SetTags, StringVector, Variant::emptyStringVector, AM_DEFAULT);
+        MY3D_ACCESSOR_ATTRIBUTE("Position", GetPosition, SetPosition, Vector3, Vector3::ZERO, AM_FILE);
+        MY3D_ACCESSOR_ATTRIBUTE("Rotation", GetRotation, SetRotation, Quaternion, Quaternion::IDENTITY, AM_FILE);
+        MY3D_ACCESSOR_ATTRIBUTE("Scale", GetScale, SetScale, Vector3, Vector3::ONE, AM_DEFAULT);
     }
 
     bool Node::Load(Deserializer &source)
@@ -607,5 +628,47 @@ namespace My3D
             scene_->NodeRemoved(child);
 
         children_.Erase(i);
+    }
+
+    void Node::SetPosition(const Vector3& position)
+    {
+        position_ = position;
+        MarkDirty();
+
+        MarkNetworkUpdate();
+    }
+
+    void Node::SetRotation(const Quaternion& rotation)
+    {
+        rotation_ = rotation;
+        MarkDirty();
+
+        MarkNetworkUpdate();
+    }
+
+    void Node::SetDirection(const Vector3& direction)
+    {
+        SetRotation(Quaternion(Vector3::FORWARD, direction));
+    }
+
+    void Node::SetScale(float scale)
+    {
+        SetScale(Vector3(scale, scale, scale));
+    }
+
+    void Node::SetScale(const Vector3& scale)
+    {
+        scale_ = scale;
+        // Prevent exact zero scale e.g. from momentary edits as this may cause division by zero
+        // when decomposing the world transform matrix
+        if (scale_.x_ == 0.0f)
+            scale_.x_ = M_EPSILON;
+        if (scale_.y_ == 0.0f)
+            scale_.y_ = M_EPSILON;
+        if (scale_.z_ == 0.0f)
+            scale_.z_ = M_EPSILON;
+
+        MarkDirty();
+        MarkNetworkUpdate();
     }
 }

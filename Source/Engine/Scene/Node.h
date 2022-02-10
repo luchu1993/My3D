@@ -14,6 +14,7 @@ namespace My3D
     class Node;
     class Scene;
     class Component;
+    class SceneResolver;
 
     /// Component and child node creation mode for networking.
     enum CreateMode
@@ -89,6 +90,8 @@ namespace My3D
         void SetEnabled(bool enable);
         /// Return whether is enabled. Disables nodes effectively disable all their components.
         bool IsEnabled() const { return enabled_; }
+        /// Return the node's last own enabled state. May be different than the value returned by IsEnabled when SetDeepEnabled has been used.
+        bool IsEnabledSelf() const { return enabledPrev_; }
         /// Return ID.
         unsigned GetID() const { return id_; }
         /// Return whether the node is replicated or local to a scene.
@@ -107,12 +110,26 @@ namespace My3D
         Node* GetParent() const { return parent_; }
         /// Return scene.
         Scene* GetScene() const { return scene_; }
+        /// Return position in parent space.
+        const Vector3& GetPosition() const { return position_; }
+        /// Return rotation in parent space.
+        const Quaternion& GetRotation() const { return rotation_; }
+        /// Return scale in parent space.
+        const Vector3& GetScale() const { return scale_; }
         /// Return whether transform has changed and world transform needs recalculation.
         bool IsDirty() const { return dirty_; }
         /// Return immediate child scene nodes.
         const Vector<SharedPtr<Node> >& GetChildren() const { return children_; }
         /// Set position in parent space. If the scene node is on the root level (is child of the scene itself), this is same as world space.
         void SetPosition(const Vector3& position);
+        /// Set rotation in parent space.
+        void SetRotation(const Quaternion& rotation);
+        /// Set forward direction in parent space. Positive Z axis equals identity rotation.
+        void SetDirection(const Vector3& direction);
+        /// Set uniform scale in parent space.
+        void SetScale(float scale);
+        /// Set scale in parent space.
+        void SetScale(const Vector3& scale);
         /// Return all components.
         const Vector<SharedPtr<Component>>& GetComponents() const { return components_; }
         /// Return all components of type. Optionally recursive.
