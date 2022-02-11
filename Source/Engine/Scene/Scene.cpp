@@ -311,6 +311,47 @@ namespace My3D
 
     }
 
+    Node* Scene::GetNode(unsigned id) const
+    {
+        if (IsReplicatedID(id))
+        {
+            HashMap<unsigned, Node*>::ConstIterator i = replicatedNodes_.Find(id);
+            return i != replicatedNodes_.End() ? i->second_ : nullptr;
+        }
+        else
+        {
+            HashMap<unsigned, Node*>::ConstIterator i = localNodes_.Find(id);
+            return i != localNodes_.End() ? i->second_ : nullptr;
+        }
+    }
+
+    bool Scene::GetNodesWithTag(PODVector<Node*>& dest, const String& tag) const
+    {
+        dest.Clear();
+        HashMap<StringHash, PODVector<Node*> >::ConstIterator it = taggedNodes_.Find(tag);
+        if (it != taggedNodes_.End())
+        {
+            dest = it->second_;
+            return true;
+        }
+        else
+            return false;
+    }
+
+    Component* Scene::GetComponent(unsigned id) const
+    {
+        if (IsReplicatedID(id))
+        {
+            HashMap<unsigned, Component*>::ConstIterator i = replicatedComponents_.Find(id);
+            return i != replicatedComponents_.End() ? i->second_ : nullptr;
+        }
+        else
+        {
+            HashMap<unsigned, Component*>::ConstIterator i = localComponents_.Find(id);
+            return i != localComponents_.End() ? i->second_ : nullptr;
+        }
+    }
+
     void Scene::Update(float timeStep)
     {
         if (asyncLoading_)

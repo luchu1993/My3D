@@ -98,6 +98,12 @@ namespace My3D
         void MarkNetworkUpdate(Component* component);
         /// Mark a node dirty in scene replication states. The node does not need to have own replication state yet.
         void MarkReplicationDirty(Node* node);
+        /// Return node from the whole scene by ID, or null if not found.
+        Node* GetNode(unsigned id) const;
+        /// Get nodes with specific tag from the whole scene, return false if empty.
+        bool GetNodesWithTag(PODVector<Node*>& dest, const String& tag)  const;
+        /// Return component from the whole scene by ID, or null if not found.
+        Component* GetComponent(unsigned id) const;
         /// Update scene. Called by HandleUpdate.
         void Update(float timeStep);
 

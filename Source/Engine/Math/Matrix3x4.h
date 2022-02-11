@@ -82,6 +82,18 @@ namespace My3D
             , m23_(data[11])
         {
         }
+        /// Construct from translation, rotation and uniform scale.
+        Matrix3x4(const Vector3& translation, const Quaternion& rotation, float scale) noexcept
+        {
+            SetRotation(rotation.RotationMatrix() * scale);
+            SetTranslation(translation);
+        }
+        /// Construct from translation, rotation and nonuniform scale.
+        Matrix3x4(const Vector3& translation, const Quaternion& rotation, const Vector3& scale) noexcept
+        {
+            SetRotation(rotation.RotationMatrix().Scaled(scale));
+            SetTranslation(translation);
+        }
         /// Assign from another matrix.
         Matrix3x4& operator =(const Matrix3x4& rhs) noexcept = default;
         /// Assign from a 3x3 matrix and set the extra elements to identity.

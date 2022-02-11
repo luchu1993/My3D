@@ -95,6 +95,25 @@ namespace My3D
         {
             return Quaternion(w_ - rhs.w_, x_ - rhs.x_, y_ - rhs.y_, z_ - rhs.z_);
         }
+        /// Multiply a quaternion.
+        Quaternion operator *(const Quaternion& rhs) const
+        {
+            return Quaternion(
+                w_ * rhs.w_ - x_ * rhs.x_ - y_ * rhs.y_ - z_ * rhs.z_,
+                w_ * rhs.x_ + x_ * rhs.w_ + y_ * rhs.z_ - z_ * rhs.y_,
+                w_ * rhs.y_ + y_ * rhs.w_ + z_ * rhs.x_ - x_ * rhs.z_,
+                w_ * rhs.z_ + z_ * rhs.w_ + x_ * rhs.y_ - y_ * rhs.x_
+            );
+        }
+        /// Multiply a Vector3.
+        Vector3 operator *(const Vector3& rhs) const
+        {
+            Vector3 qVec(x_, y_, z_);
+            Vector3 cross1(qVec.CrossProduct(rhs));
+            Vector3 cross2(qVec.CrossProduct(cross1));
+
+            return rhs + 2.0f * (cross1 * w_ + cross2);
+        }
         /// Test for equality with another quaternion without epsilon.
         bool operator ==(const Quaternion& rhs) const
         {
@@ -137,6 +156,17 @@ namespace My3D
                 return *this * invLen;
             }
             return *this;
+        }
+        /// Return inverse.
+        Quaternion Inverse() const
+        {
+            float lenSquared = LengthSquared();
+            if (lenSquared == 1.0f)
+                return Conjugate();
+            else if (lenSquared >= M_EPSILON)
+                return Conjugate() * (1.0f / lenSquared);
+            else
+                return IDENTITY;
         }
         /// return squared length
         float LengthSquared() const

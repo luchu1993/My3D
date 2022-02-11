@@ -3,11 +3,14 @@
 //
 
 #include "Core/Context.h"
+#include "IO/Log.h"
 #include "Scene/Node.h"
 #include "Resource/XMLFile.h"
 #include "Scene/SceneEvents.h"
 #include "Scene/Scene.h"
 #include "Scene/Component.h"
+#include "Scene/SceneResolver.h"
+#include "Scene/UnknownComponent.h"
 
 
 namespace My3D
@@ -53,27 +56,116 @@ namespace My3D
 
     bool Node::Load(Deserializer &source)
     {
+        SceneResolver resolver;
+
+        // Read own ID. Will not be applied, only stored for resolving possible references
+        unsigned nodeID = source.ReadUInt();
+        resolver.AddNode(nodeID, this);
+        // Read attributes, components and child nodes
+        bool success = Load(source, resolver);
+        if (success)
+        {
+            resolver.Resolve();
+            ApplyAttributes();
+        }
         return false;
     }
 
-    bool Node::Save(Serializer &dest) const
+    bool Node::Save(Serializer& dest) const
     {
-        return false;
+        // Write node ID
+        if (!dest.WriteUInt(id_))
+            return false;
+
+        // Write attributes
+        if (!Animatable::Save(dest))
+            return false;
+
+        // Write components
+        dest.WriteVLE(GetNumPersistentComponents());
+        for (unsigned i = 0; i < components_.Size(); ++i)
+        {
+            Component* component = components_[i];
+            if (component->IsTemporary())
+                continue;
+
+            // Create a separate buffer to be able to skip failing components during deserialization
+            VectorBuffer compBuffer;
+            if (!component->Save(compBuffer))
+                return false;
+            dest.WriteVLE(compBuffer.GetSize());
+            dest.Write(compBuffer.GetData(), compBuffer.GetSize());
+        }
+
+        // Write child nodes
+        dest.WriteVLE(GetNumPersistentChildren());
+        for (unsigned i = 0; i < children_.Size(); ++i)
+        {
+            Node* node = children_[i];
+            if (node->IsTemporary())
+                continue;
+
+            if (!node->Save(dest))
+                return false;
+        }
+
+        return true;
     }
 
     bool Node::LoadXML(const XMLElement &source)
     {
-        return false;
+        SceneResolver resolver;
+
+        // Read own ID. Will not be applied, only stored for resolving possible references
+        unsigned nodeID = source.GetUInt("id");
+        resolver.AddNode(nodeID, this);
+
+        // Read attributes, components and child nodes
+        bool success = LoadXML(source, resolver);
+        if (success)
+        {
+            resolver.Resolve();
+            ApplyAttributes();
+        }
+
+        return success;
     }
 
-    bool Node::SaveXML(XMLElement &dest) const
+    bool Node::SaveXML(XMLElement& dest) const
     {
-        return false;
-    }
+        // Write node ID
+        if (!dest.SetUInt("id", id_))
+            return false;
 
-    void Node::ApplyAttributes()
-    {
+        // Write attributes
+        if (!Animatable::SaveXML(dest))
+            return false;
 
+        // Write components
+        for (unsigned i = 0; i < components_.Size(); ++i)
+        {
+            Component* component = components_[i];
+            if (component->IsTemporary())
+                continue;
+
+            XMLElement compElem = dest.CreateChild("component");
+            if (!component->SaveXML(compElem))
+                return false;
+        }
+
+        // Write child nodes
+        for (unsigned i = 0; i < children_.Size(); ++i)
+        {
+            Node* node = children_[i];
+            if (node->IsTemporary())
+                continue;
+
+            XMLElement childElem = dest.CreateChild("node");
+            if (!node->SaveXML(childElem))
+                return false;
+        }
+
+        return true;
     }
 
     bool Node::SaveXML(Serializer& dest, const String& indentation) const
@@ -84,6 +176,104 @@ namespace My3D
             return false;
 
         return xml->Save(dest, indentation);
+    }
+
+    bool Node::Load(Deserializer& source, SceneResolver& resolver, bool loadChildren, bool rewriteIDs, CreateMode mode)
+    {
+        // Remove all children and components first in case this is not a fresh load
+        RemoveAllChildren();
+        RemoveAllComponents();
+
+        // ID has been read at the parent level
+        if (!Animatable::Load(source))
+            return false;
+
+        unsigned numComponents = source.ReadVLE();
+        for (unsigned i = 0; i < numComponents; ++i)
+        {
+            VectorBuffer compBuffer(source, source.ReadVLE());
+            StringHash compType = compBuffer.ReadStringHash();
+            unsigned compID = compBuffer.ReadUInt();
+
+            Component* newComponent = SafeCreateComponent(String::EMPTY, compType,
+                                                          (mode == REPLICATED && Scene::IsReplicatedID(compID)) ? REPLICATED : LOCAL, rewriteIDs ? 0 : compID);
+            if (newComponent)
+            {
+                resolver.AddComponent(compID, newComponent);
+                // Do not abort if component fails to load, as the component buffer is nested and we can skip to the next
+                newComponent->Load(compBuffer);
+            }
+        }
+
+        if (!loadChildren)
+            return true;
+
+        unsigned numChildren = source.ReadVLE();
+        for (unsigned i = 0; i < numChildren; ++i)
+        {
+            unsigned nodeID = source.ReadUInt();
+            Node* newNode = CreateChild(rewriteIDs ? 0 : nodeID, (mode == REPLICATED && Scene::IsReplicatedID(nodeID)) ? REPLICATED :
+                                                                 LOCAL);
+            resolver.AddNode(nodeID, newNode);
+            if (!newNode->Load(source, resolver, loadChildren, rewriteIDs, mode))
+                return false;
+        }
+
+        return true;
+    }
+
+    bool Node::LoadXML(const XMLElement& source, SceneResolver& resolver, bool loadChildren, bool rewriteIDs, CreateMode mode)
+    {
+        // Remove all children and components first in case this is not a fresh load
+        RemoveAllChildren();
+        RemoveAllComponents();
+
+        if (!Animatable::LoadXML(source))
+            return false;
+
+        XMLElement compElem = source.GetChild("component");
+        while (compElem)
+        {
+            String typeName = compElem.GetAttribute("type");
+            unsigned compID = compElem.GetUInt("id");
+            Component* newComponent = SafeCreateComponent(typeName, StringHash(typeName),
+                                                          (mode == REPLICATED && Scene::IsReplicatedID(compID)) ? REPLICATED : LOCAL, rewriteIDs ? 0 : compID);
+            if (newComponent)
+            {
+                resolver.AddComponent(compID, newComponent);
+                if (!newComponent->LoadXML(compElem))
+                    return false;
+            }
+
+            compElem = compElem.GetNext("component");
+        }
+
+        if (!loadChildren)
+            return true;
+
+        XMLElement childElem = source.GetChild("node");
+        while (childElem)
+        {
+            unsigned nodeID = childElem.GetUInt("id");
+            Node* newNode = CreateChild(rewriteIDs ? 0 : nodeID, (mode == REPLICATED && Scene::IsReplicatedID(nodeID)) ? REPLICATED :
+                                                                 LOCAL);
+            resolver.AddNode(nodeID, newNode);
+            if (!newNode->LoadXML(childElem, resolver, loadChildren, rewriteIDs, mode))
+                return false;
+
+            childElem = childElem.GetNext("node");
+        }
+
+        return true;
+    }
+
+    void Node::ApplyAttributes()
+    {
+        for (unsigned i = 0; i < components_.Size(); ++i)
+            components_[i]->ApplyAttributes();
+
+        for (unsigned i = 0; i < children_.Size(); ++i)
+            children_[i]->ApplyAttributes();
     }
 
     void Node::SetName(const String& name)
@@ -235,11 +425,364 @@ namespace My3D
 
     void Node::OnAttributeAnimationAdded()
     {
+        if (attributeAnimationInfos_.Size() == 1)
+            SubscribeToEvent(GetScene(), E_ATTRIBUTEANIMATIONUPDATE, MY3D_HANDLER(Node, HandleAttributeAnimationUpdate));
     }
 
     void Node::OnAttributeAnimationRemoved()
     {
+        if (attributeAnimationInfos_.Empty())
+            UnsubscribeFromEvent(GetScene(), E_ATTRIBUTEANIMATIONUPDATE);
+    }
 
+    Animatable* Node::FindAttributeAnimationTarget(const String& name, String& outName)
+    {
+        Vector<String> names = name.Split('/');
+        // Only attribute name
+        if (names.Size() == 1)
+        {
+            outName = name;
+            return this;
+        }
+        else
+        {
+            // Name must in following format: "#0/#1/@component#0/attribute"
+            Node* node = this;
+            unsigned i = 0;
+            for (; i < names.Size() - 1; ++i)
+            {
+                if (names[i].Front() != '#')
+                    break;
+
+                String name = names[i].Substring(1, names[i].Length() - 1);
+                char s = name.Front();
+                if (s >= '0' && s <= '9')
+                {
+                    unsigned index = ToUInt(name);
+                    node = node->GetChild(index);
+                }
+                else
+                {
+                    node = node->GetChild(name, true);
+                }
+
+                if (!node)
+                {
+                    MY3D_LOGERROR("Could not find node by name " + name);
+                    return nullptr;
+                }
+            }
+
+            if (i == names.Size() - 1)
+            {
+                outName = names.Back();
+                return node;
+            }
+
+            if (i != names.Size() - 2 || names[i].Front() != '@')
+            {
+                MY3D_LOGERROR("Invalid name " + name);
+                return nullptr;
+            }
+
+            String componentName = names[i].Substring(1, names[i].Length() - 1);
+            Vector<String> componentNames = componentName.Split('#');
+            if (componentNames.Size() == 1)
+            {
+                Component* component = node->GetComponent(StringHash(componentNames.Front()));
+                if (!component)
+                {
+                    MY3D_LOGERROR("Could not find component by name " + name);
+                    return nullptr;
+                }
+
+                outName = names.Back();
+                return component;
+            }
+            else
+            {
+                unsigned index = ToUInt(componentNames[1]);
+                PODVector<Component*> components;
+                node->GetComponents(components, StringHash(componentNames.Front()));
+                if (index >= components.Size())
+                {
+                    MY3D_LOGERROR("Could not find component by name " + name);
+                    return nullptr;
+                }
+
+                outName = names.Back();
+                return components[index];
+            }
+        }
+    }
+
+    void Node::SetEnabled(bool enable, bool recursive, bool storeSelf)
+    {
+        // The enabled state of the whole scene can not be changed. SetUpdateEnabled() is used instead to start/stop updates.
+        if (GetType() == Scene::GetTypeStatic())
+        {
+            MY3D_LOGERROR("Can not change enabled state of the Scene");
+            return;
+        }
+
+        if (storeSelf)
+            enabledPrev_ = enable;
+
+        if (enable != enabled_)
+        {
+            enabled_ = enable;
+            MarkNetworkUpdate();
+
+            // Notify listener components of the state change
+            for (Vector<WeakPtr<Component> >::Iterator i = listeners_.Begin(); i != listeners_.End();)
+            {
+                if (*i)
+                {
+                    (*i)->OnNodeSetEnabled(this);
+                    ++i;
+                }
+                    // If listener has expired, erase from list
+                else
+                    i = listeners_.Erase(i);
+            }
+
+            // Send change event
+            if (scene_)
+            {
+                using namespace NodeEnabledChanged;
+
+                VariantMap& eventData = GetEventDataMap();
+                eventData[P_SCENE] = scene_;
+                eventData[P_NODE] = this;
+
+                scene_->SendEvent(E_NODEENABLEDCHANGED, eventData);
+            }
+
+            for (Vector<SharedPtr<Component> >::Iterator i = components_.Begin(); i != components_.End(); ++i)
+            {
+                (*i)->OnSetEnabled();
+
+                // Send change event for the component
+                if (scene_)
+                {
+                    using namespace ComponentEnabledChanged;
+
+                    VariantMap& eventData = GetEventDataMap();
+                    eventData[P_SCENE] = scene_;
+                    eventData[P_NODE] = this;
+                    eventData[P_COMPONENT] = (*i);
+
+                    scene_->SendEvent(E_COMPONENTENABLEDCHANGED, eventData);
+                }
+            }
+        }
+
+        if (recursive)
+        {
+            for (Vector<SharedPtr<Node> >::Iterator i = children_.Begin(); i != children_.End(); ++i)
+                (*i)->SetEnabled(enable, recursive, storeSelf);
+        }
+    }
+
+    Component* Node::SafeCreateComponent(const String& typeName, StringHash type, CreateMode mode, unsigned id)
+    {
+        // Do not attempt to create replicated components to local nodes, as that may lead to component ID overwrite
+        // as replicated components are synced over
+        if (mode == REPLICATED && !IsReplicated())
+            mode = LOCAL;
+
+        // First check if factory for type exists
+        if (!context_->GetTypeName(type).Empty())
+            return CreateComponent(type, mode, id);
+        else
+        {
+            MY3D_LOGWARNING("Component type " + type.ToString() + " not known, creating UnknownComponent as placeholder");
+            // Else create as UnknownComponent
+            SharedPtr<UnknownComponent> newComponent(new UnknownComponent(context_));
+            if (typeName.Empty() || typeName.StartsWith("Unknown", false))
+                newComponent->SetType(type);
+            else
+                newComponent->SetTypeName(typeName);
+
+            AddComponent(newComponent, id, mode);
+            return newComponent;
+        }
+    }
+
+    void Node::UpdateWorldTransform() const
+    {
+        Matrix3x4 transform = GetTransform();
+
+        // Assume the root node (scene) has identity transform
+        if (parent_ == scene_ || !parent_)
+        {
+            worldTransform_ = transform;
+            worldRotation_ = rotation_;
+        }
+        else
+        {
+            worldTransform_ = parent_->GetWorldTransform() * transform;
+            worldRotation_ = parent_->GetWorldRotation() * rotation_;
+        }
+
+        dirty_ = false;
+    }
+
+    Vector3 Node::LocalToWorld(const Vector3& position) const
+    {
+        return GetWorldTransform() * position;
+    }
+
+    Vector3 Node::LocalToWorld(const Vector4& vector) const
+    {
+        return GetWorldTransform() * vector;
+    }
+
+    Vector2 Node::LocalToWorld2D(const Vector2& vector) const
+    {
+        Vector3 result = LocalToWorld(Vector3(vector));
+        return Vector2(result.x_, result.y_);
+    }
+
+    Vector3 Node::WorldToLocal(const Vector3& position) const
+    {
+        return GetWorldTransform().Inverse() * position;
+    }
+
+    Vector3 Node::WorldToLocal(const Vector4& vector) const
+    {
+        return GetWorldTransform().Inverse() * vector;
+    }
+
+    Vector2 Node::WorldToLocal2D(const Vector2& vector) const
+    {
+        Vector3 result = WorldToLocal(Vector3(vector));
+        return Vector2(result.x_, result.y_);
+    }
+
+    unsigned Node::GetNumChildren(bool recursive) const
+    {
+        if (!recursive)
+            return children_.Size();
+        else
+        {
+            unsigned allChildren = children_.Size();
+            for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+                allChildren += (*i)->GetNumChildren(true);
+
+            return allChildren;
+        }
+    }
+
+    void Node::GetChildren(PODVector<Node*>& dest, bool recursive) const
+    {
+        dest.Clear();
+
+        if (!recursive)
+        {
+            for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+                dest.Push(*i);
+        }
+        else
+            GetChildrenRecursive(dest);
+    }
+
+    PODVector<Node*> Node::GetChildren(bool recursive) const
+    {
+        PODVector<Node*> dest;
+        GetChildren(dest, recursive);
+        return dest;
+    }
+
+    void Node::GetChildrenWithComponent(PODVector<Node*>& dest, StringHash type, bool recursive) const
+    {
+        dest.Clear();
+
+        if (!recursive)
+        {
+            for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+            {
+                if ((*i)->HasComponent(type))
+                    dest.Push(*i);
+            }
+        }
+        else
+            GetChildrenWithComponentRecursive(dest, type);
+    }
+
+    PODVector<Node*> Node::GetChildrenWithComponent(StringHash type, bool recursive) const
+    {
+        PODVector<Node*> dest;
+        GetChildrenWithComponent(dest, type, recursive);
+        return dest;
+    }
+
+    void Node::GetChildrenWithTag(PODVector<Node*>& dest, const String& tag, bool recursive /*= true*/) const
+    {
+        dest.Clear();
+
+        if (!recursive)
+        {
+            for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+            {
+                if ((*i)->HasTag(tag))
+                    dest.Push(*i);
+            }
+        }
+        else
+            GetChildrenWithTagRecursive(dest, tag);
+    }
+
+    PODVector<Node*> Node::GetChildrenWithTag(const String& tag, bool recursive) const
+    {
+        PODVector<Node*> dest;
+        GetChildrenWithTag(dest, tag, recursive);
+        return dest;
+    }
+
+    Node* Node::GetChild(unsigned index) const
+    {
+        return index < children_.Size() ? children_[index].Get() : nullptr;
+    }
+
+    Node* Node::GetChild(const String& name, bool recursive) const
+    {
+        return GetChild(StringHash(name), recursive);
+    }
+
+    Node* Node::GetChild(const char* name, bool recursive) const
+    {
+        return GetChild(StringHash(name), recursive);
+    }
+
+    Node* Node::GetChild(StringHash nameHash, bool recursive) const
+    {
+        for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            if ((*i)->GetNameHash() == nameHash)
+                return *i;
+
+            if (recursive)
+            {
+                Node* node = (*i)->GetChild(nameHash, true);
+                if (node)
+                    return node;
+            }
+        }
+
+        return nullptr;
+    }
+
+    unsigned Node::GetNumNetworkComponents() const
+    {
+        unsigned num = 0;
+        for (Vector<SharedPtr<Component> >::ConstIterator i = components_.Begin(); i != components_.End(); ++i)
+        {
+            if ((*i)->IsReplicated())
+                ++num;
+        }
+
+        return num;
     }
 
     void Node::GetComponents(PODVector<Component*>& dest, StringHash type, bool recursive) const
@@ -256,6 +799,22 @@ namespace My3D
         }
         else
             GetComponentsRecursive(dest, type);
+    }
+
+    bool Node::HasComponent(StringHash type) const
+    {
+        for (Vector<SharedPtr<Component> >::ConstIterator i = components_.Begin(); i != components_.End(); ++i)
+        {
+            if ((*i)->GetType() == type)
+                return true;
+        }
+        return false;
+    }
+
+    const Variant& Node::GetVar(StringHash key) const
+    {
+        VariantMap::ConstIterator i = vars_.Find(key);
+        return i != vars_.End() ? i->second_ : Variant::EMPTY;
     }
 
     void Node::GetComponentsRecursive(PODVector<Component*>& dest, StringHash type) const
@@ -287,6 +846,23 @@ namespace My3D
             }
         }
 
+        return nullptr;
+    }
+
+    Component* Node::GetParentComponent(StringHash type, bool fullTraversal) const
+    {
+        Node* current = GetParent();
+        while (current)
+        {
+            Component* soughtComponent = current->GetComponent(type);
+            if (soughtComponent)
+                return soughtComponent;
+
+            if (fullTraversal)
+                current = current->GetParent();
+            else
+                break;
+        }
         return nullptr;
     }
 
@@ -630,6 +1206,158 @@ namespace My3D
         children_.Erase(i);
     }
 
+    void Node::GetChildrenRecursive(PODVector<Node*>& dest) const
+    {
+        for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            Node* node = *i;
+            dest.Push(node);
+            if (!node->children_.Empty())
+                node->GetChildrenRecursive(dest);
+        }
+    }
+
+    void Node::GetChildrenWithComponentRecursive(PODVector<Node*>& dest, StringHash type) const
+    {
+        for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            Node* node = *i;
+            if (node->HasComponent(type))
+                dest.Push(node);
+            if (!node->children_.Empty())
+                node->GetChildrenWithComponentRecursive(dest, type);
+        }
+    }
+
+    void Node::GetChildrenWithTagRecursive(PODVector<Node*>& dest, const String& tag) const
+    {
+        for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            Node* node = *i;
+            if (node->HasTag(tag))
+                dest.Push(node);
+            if (!node->children_.Empty())
+                node->GetChildrenWithTagRecursive(dest, tag);
+        }
+    }
+
+    Component* Node::CreateComponent(StringHash type, CreateMode mode, unsigned id)
+    {
+        // Do not attempt to create replicated components to local nodes, as that may lead to component ID overwrite
+        // as replicated components are synced over
+        if (mode == REPLICATED && !IsReplicated())
+            mode = LOCAL;
+
+        // Check that creation succeeds and that the object in fact is a component
+        SharedPtr<Component> newComponent = DynamicCast<Component>(context_->CreateObject(type));
+        if (!newComponent)
+        {
+            MY3D_LOGERROR("Could not create unknown component type " + type.ToString());
+            return nullptr;
+        }
+
+        AddComponent(newComponent, id, mode);
+        return newComponent;
+    }
+
+    Component* Node::GetOrCreateComponent(StringHash type, CreateMode mode, unsigned id)
+    {
+        Component* oldComponent = GetComponent(type);
+        if (oldComponent)
+            return oldComponent;
+        else
+            return CreateComponent(type, mode, id);
+    }
+
+    Node* Node::CreateChild(unsigned id, CreateMode mode, bool temporary)
+    {
+        SharedPtr<Node> newNode(new Node(context_));
+        newNode->SetTemporary(temporary);
+
+        // If zero ID specified, or the ID is already taken, let the scene assign
+        if (scene_)
+        {
+            if (!id || scene_->GetNode(id))
+                id = scene_->GetFreeNodeID(mode);
+            newNode->SetID(id);
+        }
+        else
+            newNode->SetID(id);
+
+        AddChild(newNode);
+        return newNode;
+    }
+
+    void Node::AddComponent(Component* component, unsigned id, CreateMode mode)
+    {
+        if (!component)
+            return;
+
+        components_.Push(SharedPtr<Component>(component));
+
+        if (component->GetNode())
+            MY3D_LOGWARNING("Component " + component->GetTypeName() + " already belongs to a node!");
+
+        component->SetNode(this);
+
+        // If zero ID specified, or the ID is already taken, let the scene assign
+        if (scene_)
+        {
+            if (!id || scene_->GetComponent(id))
+                id = scene_->GetFreeComponentID(mode);
+            component->SetID(id);
+            scene_->ComponentAdded(component);
+        }
+        else
+            component->SetID(id);
+
+        component->OnMarkedDirty(this);
+
+        // Check attributes of the new component on next network update, and mark node dirty in all replication states
+        component->MarkNetworkUpdate();
+        MarkNetworkUpdate();
+        MarkReplicationDirty();
+
+        // Send change event
+        if (scene_)
+        {
+            using namespace ComponentAdded;
+
+            VariantMap& eventData = GetEventDataMap();
+            eventData[P_SCENE] = scene_;
+            eventData[P_NODE] = this;
+            eventData[P_COMPONENT] = component;
+
+            scene_->SendEvent(E_COMPONENTADDED, eventData);
+        }
+    }
+
+    unsigned Node::GetNumPersistentChildren() const
+    {
+        unsigned ret = 0;
+
+        for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            if (!(*i)->IsTemporary())
+                ++ret;
+        }
+
+        return ret;
+    }
+
+    unsigned Node::GetNumPersistentComponents() const
+    {
+        unsigned ret = 0;
+
+        for (Vector<SharedPtr<Component> >::ConstIterator i = components_.Begin(); i != components_.End(); ++i)
+        {
+            if (!(*i)->IsTemporary())
+                ++ret;
+        }
+
+        return ret;
+    }
+
     void Node::SetPosition(const Vector3& position)
     {
         position_ = position;
@@ -670,5 +1398,74 @@ namespace My3D
 
         MarkDirty();
         MarkNetworkUpdate();
+    }
+
+    void Node::SetTransform(const Vector3& position, const Quaternion& rotation)
+    {
+        position_ = position;
+        rotation_ = rotation;
+        MarkDirty();
+
+        MarkNetworkUpdate();
+    }
+
+    void Node::SetTransform(const Vector3& position, const Quaternion& rotation, float scale)
+    {
+        SetTransform(position, rotation, Vector3(scale, scale, scale));
+    }
+
+    void Node::SetTransform(const Vector3& position, const Quaternion& rotation, const Vector3& scale)
+    {
+        position_ = position;
+        rotation_ = rotation;
+        scale_ = scale;
+        MarkDirty();
+
+        MarkNetworkUpdate();
+    }
+
+    void Node::SetTransform(const Matrix3x4& matrix)
+    {
+        SetTransform(matrix.Translation(), matrix.Rotation(), matrix.Scale());
+    }
+
+    void Node::SetWorldPosition(const Vector3& position)
+    {
+        SetPosition((parent_ == scene_ || !parent_) ? position : parent_->GetWorldTransform().Inverse() * position);
+    }
+
+    void Node::SetWorldRotation(const Quaternion& rotation)
+    {
+        SetRotation((parent_ == scene_ || !parent_) ? rotation : parent_->GetWorldRotation().Inverse() * rotation);
+    }
+
+    void Node::SetWorldDirection(const Vector3& direction)
+    {
+        Vector3 localDirection = (parent_ == scene_ || !parent_) ? direction : parent_->GetWorldRotation().Inverse() * direction;
+        SetRotation(Quaternion(Vector3::FORWARD, localDirection));
+    }
+
+    void Node::SetWorldScale(float scale)
+    {
+        SetWorldScale(Vector3(scale, scale, scale));
+    }
+
+    void Node::SetWorldScale(const Vector3& scale)
+    {
+        SetScale((parent_ == scene_ || !parent_) ? scale : scale / parent_->GetWorldScale());
+    }
+
+    void Node::SetTransformSilent(const Vector3& position, const Quaternion& rotation, const Vector3& scale)
+    {
+        position_ = position;
+        rotation_ = rotation;
+        scale_ = scale;
+    }
+
+    void Node::HandleAttributeAnimationUpdate(StringHash eventType, VariantMap& eventData)
+    {
+        using namespace AttributeAnimationUpdate;
+
+        UpdateAttributeAnimations(eventData[P_TIMESTEP].GetFloat());
     }
 }
