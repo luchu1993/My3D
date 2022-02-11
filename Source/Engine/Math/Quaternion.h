@@ -178,8 +178,8 @@ namespace My3D
         Matrix3 RotationMatrix() const;
         /// Special interpolation with another quaternion
         Quaternion Slerp(const Quaternion& rhs, float t) const;
-        /// Normalized linear interpolation with another quaternion
-        Quaternion Nlerp(const Quaternion& rhs, float t) const;
+        /// Normalized linear interpolation with another quaternion.
+        Quaternion Nlerp(const Quaternion& rhs, float t, bool shortestPath = false) const;
         /// Return data pointer
         const float* Data() const { return &w_; }
         /// Return as string
