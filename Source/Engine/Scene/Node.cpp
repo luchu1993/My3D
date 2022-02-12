@@ -828,6 +828,64 @@ namespace My3D
             (*i)->GetComponentsRecursive(dest, type);
     }
 
+    Node* Node::CloneRecursive(Node* parent, SceneResolver& resolver, CreateMode mode)
+    {
+        // Create clone node
+        Node* cloneNode = parent->CreateChild(0, (mode == REPLICATED && IsReplicated()) ? REPLICATED : LOCAL);
+        resolver.AddNode(id_, cloneNode);
+
+        // Copy attributes
+        const Vector<AttributeInfo>* attributes = GetAttributes();
+        for (unsigned j = 0; j < attributes->Size(); ++j)
+        {
+            const AttributeInfo& attr = attributes->At(j);
+            // Do not copy network-only attributes, as they may have unintended side effects
+            if (attr.mode_ & AM_FILE)
+            {
+                Variant value;
+                OnGetAttribute(attr, value);
+                cloneNode->OnSetAttribute(attr, value);
+            }
+        }
+
+        // Clone components
+        for (Vector<SharedPtr<Component> >::ConstIterator i = components_.Begin(); i != components_.End(); ++i)
+        {
+            Component* component = *i;
+            if (component->IsTemporary())
+                continue;
+
+            Component* cloneComponent = cloneNode->CloneComponent(component,
+                                                                  (mode == REPLICATED && component->IsReplicated()) ? REPLICATED : LOCAL, 0);
+            if (cloneComponent)
+                resolver.AddComponent(component->GetID(), cloneComponent);
+        }
+
+        // Clone child nodes recursively
+        for (Vector<SharedPtr<Node> >::ConstIterator i = children_.Begin(); i != children_.End(); ++i)
+        {
+            Node* node = *i;
+            if (node->IsTemporary())
+                continue;
+
+            node->CloneRecursive(cloneNode, resolver, mode);
+        }
+
+        if (scene_)
+        {
+            using namespace NodeCloned;
+
+            VariantMap& eventData = GetEventDataMap();
+            eventData[P_SCENE] = scene_;
+            eventData[P_NODE] = this;
+            eventData[P_CLONENODE] = cloneNode;
+
+            scene_->SendEvent(E_NODECLONED, eventData);
+        }
+
+        return cloneNode;
+    }
+
     Component* Node::GetComponent(StringHash type, bool recursive) const
     {
         for (Vector<SharedPtr<Component> >::ConstIterator i = components_.Begin(); i != components_.End(); ++i)
@@ -986,6 +1044,74 @@ namespace My3D
     void Node::MarkReplicationDirty()
     {
 
+    }
+
+    void Node::ReorderComponent(Component* component, unsigned index)
+    {
+        if (!component || component->GetNode() != this)
+            return;
+
+        for (Vector<SharedPtr<Component> >::Iterator i = components_.Begin(); i != components_.End(); ++i)
+        {
+            if (*i == component)
+            {
+                // Need shared ptr to insert. Also, prevent destruction when removing first
+                SharedPtr<Component> componentShared(component);
+                components_.Erase(i);
+                components_.Insert(index, componentShared);
+                return;
+            }
+        }
+    }
+
+    Node* Node::Clone(CreateMode mode)
+    {
+        // The scene itself can not be cloned
+        if (this == scene_ || !parent_)
+        {
+            MY3D_LOGERROR("Can not clone node without a parent");
+            return nullptr;
+        }
+
+
+        SceneResolver resolver;
+        Node* clone = CloneRecursive(parent_, resolver, mode);
+        resolver.Resolve();
+        clone->ApplyAttributes();
+        return clone;
+    }
+
+    void Node::Remove()
+    {
+        if (parent_)
+            parent_->RemoveChild(this);
+    }
+
+    void Node::SetParent(Node* parent)
+    {
+        if (parent)
+        {
+            Matrix3x4 oldWorldTransform = GetWorldTransform();
+
+            parent->AddChild(this);
+
+            if (parent != scene_)
+            {
+                Matrix3x4 newTransform = parent->GetWorldTransform().Inverse() * oldWorldTransform;
+                SetTransform(newTransform.Translation(), newTransform.Rotation(), newTransform.Scale());
+            }
+            else
+            {
+                // The root node is assumed to have identity transform, so can disregard it
+                SetTransform(oldWorldTransform.Translation(), oldWorldTransform.Rotation(), oldWorldTransform.Scale());
+            }
+        }
+    }
+
+    void Node::SetVar(StringHash key, const Variant& value)
+    {
+        vars_[key] = value;
+        MarkNetworkUpdate();
     }
 
     void Node::AddListener(Component* component)
@@ -1267,6 +1393,68 @@ namespace My3D
             return oldComponent;
         else
             return CreateComponent(type, mode, id);
+    }
+
+    Component* Node::CloneComponent(Component* component, unsigned id)
+    {
+        if (!component)
+        {
+            MY3D_LOGERROR("Null source component given for CloneComponent");
+            return nullptr;
+        }
+
+        return CloneComponent(component, component->IsReplicated() ? REPLICATED : LOCAL, id);
+    }
+
+    Component* Node::CloneComponent(Component* component, CreateMode mode, unsigned id)
+    {
+        if (!component)
+        {
+            MY3D_LOGERROR("Null source component given for CloneComponent");
+            return nullptr;
+        }
+
+        Component* cloneComponent = SafeCreateComponent(component->GetTypeName(), component->GetType(), mode, 0);
+        if (!cloneComponent)
+        {
+            MY3D_LOGERROR("Could not clone component " + component->GetTypeName());
+            return nullptr;
+        }
+
+        const Vector<AttributeInfo>* compAttributes = component->GetAttributes();
+        const Vector<AttributeInfo>* cloneAttributes = cloneComponent->GetAttributes();
+
+        if (compAttributes)
+        {
+            for (unsigned i = 0; i < compAttributes->Size() && i < cloneAttributes->Size(); ++i)
+            {
+                const AttributeInfo& attr = compAttributes->At(i);
+                const AttributeInfo& cloneAttr = cloneAttributes->At(i);
+                if (attr.mode_ & AM_FILE)
+                {
+                    Variant value;
+                    component->OnGetAttribute(attr, value);
+                    // Note: when eg. a ScriptInstance component is cloned, its script object attributes are unique and therefore we
+                    // can not simply refer to the source component's AttributeInfo
+                    cloneComponent->OnSetAttribute(cloneAttr, value);
+                }
+            }
+            cloneComponent->ApplyAttributes();
+        }
+
+        if (scene_)
+        {
+            using namespace ComponentCloned;
+
+            VariantMap& eventData = GetEventDataMap();
+            eventData[P_SCENE] = scene_;
+            eventData[P_COMPONENT] = component;
+            eventData[P_CLONECOMPONENT] = cloneComponent;
+
+            scene_->SendEvent(E_COMPONENTCLONED, eventData);
+        }
+
+        return cloneComponent;
     }
 
     Node* Node::CreateChild(unsigned id, CreateMode mode, bool temporary)

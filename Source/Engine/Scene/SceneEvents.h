@@ -124,4 +124,20 @@ namespace My3D
         MY3D_PARAM(P_NODE, Node);                    // Node pointer
         MY3D_PARAM(P_TAG, Tag);                      // String tag
     }
+
+    /// A node (and its children and components) has been cloned.
+    MY3D_EVENT(E_NODECLONED, NodeCloned)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_NODE, Node);                    // Node pointer
+        MY3D_PARAM(P_CLONENODE, CloneNode);          // Node pointer
+    }
+
+    /// A component has been cloned.
+    MY3D_EVENT(E_COMPONENTCLONED, ComponentCloned)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                   // Scene pointer
+        MY3D_PARAM(P_COMPONENT, Component);           // Component pointer
+        MY3D_PARAM(P_CLONECOMPONENT, CloneComponent); // Component pointer
+    }
 }

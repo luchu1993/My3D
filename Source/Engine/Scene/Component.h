@@ -11,6 +11,8 @@ namespace My3D
     class DebugRenderer;
     class Node;
     class Scene;
+    class Connection;
+    struct ComponentReplicationState;
 
     /// Autoremove is used by some components for automatic removal from the scene hierarchy upon completion of an action, for example sound or particle effect.
     enum AutoRemoveMode
@@ -69,9 +71,16 @@ namespace My3D
         /// Return components in the same scene node by type.
         void GetComponents(PODVector<Component*>& dest, StringHash type) const;
         /// Template version of returning a component in the same scene node by type.
-        template <class T> T* GetComponent() const;
+        template <typename T> T* GetComponent() const;
         /// Template version of returning components in the same scene node by type.
-        template <class T> void GetComponents(PODVector<T*>& dest) const;
+        template <typename T> void GetComponents(PODVector<T*>& dest) const;
+
+        /// Add a replication state that is tracking this component.
+        void AddReplicationState(ComponentReplicationState* state);
+        /// Prepare network update by comparing attributes and marking replication states dirty as necessary.
+        void PrepareNetworkUpdate();
+        /// Clean up all references to a network connection that is about to be removed.
+        void CleanupConnection(Connection* connection);
 
     protected:
         /// Handle attribute animation added.
@@ -92,6 +101,11 @@ namespace My3D
         void SetNode(Node* node);
         /// Handle scene attribute animation update event.
         void HandleAttributeAnimationUpdate(StringHash eventType, VariantMap& eventData);
+        /// Return a component from the scene root that sends out fixed update events (either PhysicsWorld or PhysicsWorld2D). Return null if neither exists.
+        Component* GetFixedUpdateSource();
+        /// Perform autoremove. Called by subclasses. Caller should keep a weak pointer to itself to check whether was actually removed, and return immediately without further member operations in that case.
+        void DoAutoRemove(AutoRemoveMode mode);
+
     private:
         /// Scene node.
         Node* node_;

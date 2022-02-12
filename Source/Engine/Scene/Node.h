@@ -105,6 +105,7 @@ namespace My3D
         const StringVector& GetTags() const { return impl_->tags_; }
         /// Return whether has a specific tag.
         bool HasTag(const String& tag) const;
+
         /// Set position in parent space. If the scene node is on the root level (is child of the scene itself), this is same as world space.
         void SetPosition(const Vector3& position);
         /// Set position in world space.
@@ -203,12 +204,14 @@ namespace My3D
 
             return worldTransform_;
         }
-        /// Return whether is a direct or indirect child of specified node.
-        bool IsChildOf(Node* node) const;
-        /// Return parent scene node.
-        Node* GetParent() const { return parent_; }
-        /// Return scene.
-        Scene* GetScene() const { return scene_; }
+        /// Set position in parent space silently without marking the node & child nodes dirty. Used by animation code.
+        void SetPositionSilent(const Vector3& position) { position_ = position; }
+        /// Set position in parent space silently without marking the node & child nodes dirty. Used by animation code.
+        void SetRotationSilent(const Quaternion& rotation) { rotation_ = rotation; }
+        /// Set scale in parent space silently without marking the node & child nodes dirty. Used by animation code.
+        void SetScaleSilent(const Vector3& scale) { scale_ = scale; }
+        /// Set local transform silently without marking the node & child nodes dirty. Used by animation code.
+        void SetTransformSilent(const Vector3& position, const Quaternion& rotation, const Vector3& scale);
         /// Convert a local space position to world space.
         Vector3 LocalToWorld(const Vector3& position) const;
         /// Convert a local space position or rotation to world space.
@@ -221,6 +224,13 @@ namespace My3D
         Vector3 WorldToLocal(const Vector4& vector) const;
         /// Convert a world space position or rotation to local space (for Urho2D).
         Vector2 WorldToLocal2D(const Vector2& vector) const;
+
+        /// Return whether is a direct or indirect child of specified node.
+        bool IsChildOf(Node* node) const;
+        /// Return parent scene node.
+        Node* GetParent() const { return parent_; }
+        /// Return scene.
+        Scene* GetScene() const { return scene_; }
         /// Return whether transform has changed and world transform needs recalculation.
         bool IsDirty() const { return dirty_; }
         /// Return number of child scene nodes.
@@ -267,6 +277,88 @@ namespace My3D
         const Variant& GetVar(StringHash key) const;
         /// Return all user variables.
         const VariantMap& GetVars() const { return vars_; }
+        /// Set ID. Called by Scene.
+        void SetID(unsigned id);
+        /// Set scene. Called by Scene.
+        void SetScene(Scene* scene);
+        /// Reset scene, ID and owner. Called by Scene.
+        void ResetScene();
+        /// Set network position attribute.
+        void SetNetPositionAttr(const Vector3& value);
+        /// Set network rotation attribute.
+        void SetNetRotationAttr(const PODVector<unsigned char>& value);
+        /// Set network parent attribute.
+        void SetNetParentAttr(const PODVector<unsigned char>& value);
+        /// Return network position attribute.
+        const Vector3& GetNetPositionAttr() const;
+        /// Return network rotation attribute.
+        const PODVector<unsigned char>& GetNetRotationAttr() const;
+        /// Return network parent attribute.
+        const PODVector<unsigned char>& GetNetParentAttr() const;
+        /// Return the depended on nodes to order network updates.
+        const PODVector<Node*>& GetDependencyNodes() const { return impl_->dependencyNodes_; }
+        /// Prepare network update by comparing attributes and marking replication states dirty as necessary.
+        void PrepareNetworkUpdate();
+        /// Clean up all references to a network connection that is about to be removed.
+        void CleanupConnection(Connection* connection);
+        /// Mark node dirty in scene replication states.
+        void MarkReplicationDirty();
+        /// Remove a component from this node.
+        void RemoveComponent(Component* component);
+        /// Remove the first component of specific type from this node.
+        void RemoveComponent(StringHash type);
+        /// Remove components that match criteria.
+        void RemoveComponents(bool removeReplicated, bool removeLocal);
+        /// Remove all components of specific type.
+        void RemoveComponents(StringHash type);
+        /// Remove all components from this node.
+        void RemoveAllComponents();
+        /// Adjust index order of an existing component in this node.
+        void ReorderComponent(Component* component, unsigned index);
+        /// Clone scene node, components and child nodes. Return the clone.
+        Node* Clone(CreateMode mode = REPLICATED);
+        /// Remove from the parent node. If no other shared pointer references exist, causes immediate deletion.
+        void Remove();
+        /// Assign to a new parent scene node. Retains the world transform.
+        void SetParent(Node* parent);
+        /// Set a user variable.
+        void SetVar(StringHash key, const Variant& value);
+        /// Add listener component that is notified of node being dirtied. Can either be in the same node or another.
+        void AddListener(Component* component);
+        /// Remove listener component.
+        void RemoveListener(Component* component);
+        /// Mark node and child nodes to need world transform recalculation. Notify listener components.
+        void MarkDirty();
+        /// Add a child scene node at a specific index. If index is not explicitly specified or is greater than current children size, append the new child at the end.
+        void AddChild(Node* node, unsigned index = M_MAX_UNSIGNED);
+        /// Remove a child scene node.
+        void RemoveChild(Node* node);
+        /// Remove all child scene nodes.
+        void RemoveAllChildren();
+        /// Remove child scene nodes that match criteria.
+        void RemoveChildren(bool removeReplicated, bool removeLocal, bool recursive);
+        /// Create a component to this node (with specified ID if provided).
+        Component* CreateComponent(StringHash type, CreateMode mode = REPLICATED, unsigned id = 0);
+        /// Create a component to this node if it does not exist already.
+        Component* GetOrCreateComponent(StringHash type, CreateMode mode = REPLICATED, unsigned id = 0);
+        /// Clone a component from another node using its create mode. Return the clone if successful or null on failure.
+        Component* CloneComponent(Component* component, unsigned id = 0);
+        /// Clone a component from another node and specify the create mode. Return the clone if successful or null on failure.
+        Component* CloneComponent(Component* component, CreateMode mode, unsigned id = 0);
+        /// Create a child node with specific ID.
+        Node* CreateChild(unsigned id, CreateMode mode, bool temporary = false);
+        /// Add a pre-created component. Using this function from application code is discouraged, as component operation without an owner node may not be well-defined in all cases. Prefer CreateComponent() instead.
+        void AddComponent(Component* component, unsigned id, CreateMode mode);
+        /// Calculate number of non-temporary child nodes.
+        unsigned GetNumPersistentChildren() const;
+        /// Calculate number of non-temporary components.
+        unsigned GetNumPersistentComponents() const;
+        /// Load components and optionally load child nodes.
+        bool Load(Deserializer& source, SceneResolver& resolver, bool loadChildren = true, bool rewriteIDs = false, CreateMode mode = REPLICATED);
+        /// Load components from XML data and optionally load child nodes.
+        bool LoadXML(const XMLElement& source, SceneResolver& resolver, bool loadChildren = true, bool rewriteIDs = false, CreateMode mode = REPLICATED);
+
+
         /// Template version of creating a component.
         template <typename T> T* CreateComponent(CreateMode mode = REPLICATED, unsigned id = 0);
         /// Template version of getting or creating a component.
@@ -291,81 +383,6 @@ namespace My3D
         template <typename T> void GetComponents(PODVector<T*>& dest, bool recursive = false) const;
         /// Template version of checking whether has a specific component.
         template <typename T> bool HasComponent() const;
-        /// Set ID. Called by Scene.
-        void SetID(unsigned id);
-        /// Set scene. Called by Scene.
-        void SetScene(Scene* scene);
-        /// Reset scene, ID and owner. Called by Scene.
-        void ResetScene();
-        /// Set network position attribute.
-        void SetNetPositionAttr(const Vector3& value);
-        /// Set network rotation attribute.
-        void SetNetRotationAttr(const PODVector<unsigned char>& value);
-        /// Set network parent attribute.
-        void SetNetParentAttr(const PODVector<unsigned char>& value);
-        /// Return network position attribute.
-        const Vector3& GetNetPositionAttr() const;
-        /// Return network rotation attribute.
-        const PODVector<unsigned char>& GetNetRotationAttr() const;
-        /// Return network parent attribute.
-        const PODVector<unsigned char>& GetNetParentAttr() const;
-        /// Return the depended on nodes to order network updates.
-        const PODVector<Node*>& GetDependencyNodes() const { return impl_->dependencyNodes_; }
-        /// Prepare network update by comparing attributes and marking replication states dirty as necessary.
-        void PrepareNetworkUpdate();
-        /// Clean up all references to a network connection that is about to be removed.
-        /// @manualbind
-        void CleanupConnection(Connection* connection);
-        /// Mark node dirty in scene replication states.
-        void MarkReplicationDirty();
-        /// Remove a component from this node.
-        void RemoveComponent(Component* component);
-        /// Remove the first component of specific type from this node.
-        void RemoveComponent(StringHash type);
-        /// Remove components that match criteria.
-        void RemoveComponents(bool removeReplicated, bool removeLocal);
-        /// Remove all components of specific type.
-        void RemoveComponents(StringHash type);
-        /// Remove all components from this node.
-        void RemoveAllComponents();
-        /// Add listener component that is notified of node being dirtied. Can either be in the same node or another.
-        void AddListener(Component* component);
-        /// Remove listener component.
-        void RemoveListener(Component* component);
-        /// Mark node and child nodes to need world transform recalculation. Notify listener components.
-        void MarkDirty();
-        /// Add a child scene node at a specific index. If index is not explicitly specified or is greater than current children size, append the new child at the end.
-        void AddChild(Node* node, unsigned index = M_MAX_UNSIGNED);
-        /// Remove a child scene node.
-        void RemoveChild(Node* node);
-        /// Remove all child scene nodes.
-        void RemoveAllChildren();
-        /// Remove child scene nodes that match criteria.
-        void RemoveChildren(bool removeReplicated, bool removeLocal, bool recursive);
-        /// Create a component to this node (with specified ID if provided).
-        Component* CreateComponent(StringHash type, CreateMode mode = REPLICATED, unsigned id = 0);
-        /// Create a component to this node if it does not exist already.
-        Component* GetOrCreateComponent(StringHash type, CreateMode mode = REPLICATED, unsigned id = 0);
-        /// Create a child node with specific ID.
-        Node* CreateChild(unsigned id, CreateMode mode, bool temporary = false);
-        /// Add a pre-created component. Using this function from application code is discouraged, as component operation without an owner node may not be well-defined in all cases. Prefer CreateComponent() instead.
-        void AddComponent(Component* component, unsigned id, CreateMode mode);
-        /// Calculate number of non-temporary child nodes.
-        unsigned GetNumPersistentChildren() const;
-        /// Calculate number of non-temporary components.
-        unsigned GetNumPersistentComponents() const;
-        /// Load components and optionally load child nodes.
-        bool Load(Deserializer& source, SceneResolver& resolver, bool loadChildren = true, bool rewriteIDs = false, CreateMode mode = REPLICATED);
-        /// Load components from XML data and optionally load child nodes.
-        bool LoadXML(const XMLElement& source, SceneResolver& resolver, bool loadChildren = true, bool rewriteIDs = false, CreateMode mode = REPLICATED);
-        /// Set position in parent space silently without marking the node & child nodes dirty. Used by animation code.
-        void SetPositionSilent(const Vector3& position) { position_ = position; }
-        /// Set position in parent space silently without marking the node & child nodes dirty. Used by animation code.
-        void SetRotationSilent(const Quaternion& rotation) { rotation_ = rotation; }
-        /// Set scale in parent space silently without marking the node & child nodes dirty. Used by animation code.
-        void SetScaleSilent(const Vector3& scale) { scale_ = scale; }
-        /// Set local transform silently without marking the node & child nodes dirty. Used by animation code.
-        void SetTransformSilent(const Vector3& position, const Quaternion& rotation, const Vector3& scale);
 
     protected:
         /// Handle attribute animation added.
@@ -394,6 +411,8 @@ namespace My3D
         void GetChildrenWithTagRecursive(PODVector<Node*>& dest, const String& tag) const;
         /// Return specific components recursively.
         void GetComponentsRecursive(PODVector<Component*>& dest, StringHash type) const;
+        /// Clone node recursively.
+        Node* CloneRecursive(Node* parent, SceneResolver& resolver, CreateMode mode);
         /// Handle attribute animation update event.
         void HandleAttributeAnimationUpdate(StringHash eventType, VariantMap& eventData);
         /// World-space transform matrix.

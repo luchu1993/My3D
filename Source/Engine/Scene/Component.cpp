@@ -179,4 +179,31 @@ namespace My3D
         UpdateAttributeAnimations(eventData[P_TIMESTEP].GetFloat());
     }
 
+    Component* Component::GetFixedUpdateSource()
+    {
+        Component* ret = nullptr;
+        Scene* scene = GetScene();
+
+        // TODO: PhysicsWorld(2D) Component
+        return nullptr;
+    }
+
+    void Component::DoAutoRemove(AutoRemoveMode mode)
+    {
+        switch (mode)
+        {
+            case REMOVE_COMPONENT:
+                Remove();
+                return;
+
+            case REMOVE_NODE:
+                if (node_)
+                    node_->Remove();
+                return;
+
+            default:
+                return;
+        }
+    }
+
 }
