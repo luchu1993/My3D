@@ -8,6 +8,7 @@
 #include "Core/Mutex.h"
 #include "Resource/XMLElement.h"
 #include "Scene/Node.h"
+#include "Scene/SceneResolver.h"
 
 
 namespace My3D
@@ -72,6 +73,29 @@ namespace My3D
         explicit Scene(Context* context);
         /// Destruct.
         ~Scene() override;
+        /// Register object factory. Node must be registered first.
+        static void RegisterObject(Context* context);
+        /// Load from binary data. Removes all existing child nodes and components first. Return true if successful.
+        bool Load(Deserializer& source) override;
+        /// Save to binary data. Return true if successful.
+        bool Save(Serializer& dest) const override;
+        /// Load from XML data. Removes all existing child nodes and components first. Return true if successful.
+        bool LoadXML(const XMLElement& source) override;
+        /// Mark for attribute check on the next network update.
+        void MarkNetworkUpdate() override;
+        /// Load from an XML file. Return true if successful.
+        bool LoadXML(Deserializer& source);
+        /// Save to an XML file. Return true if successful.
+        bool SaveXML(Serializer& dest, const String& indentation = "\t") const;
+        /// Load from a binary file asynchronously. Return true if started successfully. The LOAD_RESOURCES_ONLY mode can also be used to preload resources from object prefab files.
+        bool LoadAsync(File* file, LoadMode mode = LOAD_SCENE_AND_RESOURCES);
+        /// Load from an XML file asynchronously. Return true if started successfully. The LOAD_RESOURCES_ONLY mode can also be used to preload resources from object prefab files.
+        bool LoadAsyncXML(File* file, LoadMode mode = LOAD_SCENE_AND_RESOURCES);
+        /// Stop asynchronous loading.
+        void StopAsyncLoading();
+        /// Clear scene completely of either replicated, local or all nodes and components.
+        void Clear(bool clearReplicated = true, bool clearLocal = true);
+
         /// Return threaded update flag.
         bool IsThreadedUpdate() const { return threadedUpdate_; }
         /// Get free node ID, either non-local or local.
@@ -102,16 +126,28 @@ namespace My3D
         Node* GetNode(unsigned id) const;
         /// Get nodes with specific tag from the whole scene, return false if empty.
         bool GetNodesWithTag(PODVector<Node*>& dest, const String& tag)  const;
+        /// Return whether updates are enabled.
+        bool IsUpdateEnabled() const { return updateEnabled_; }
         /// Return component from the whole scene by ID, or null if not found.
         Component* GetComponent(unsigned id) const;
         /// Update scene. Called by HandleUpdate.
         void Update(float timeStep);
+        /// Register a node user variable hash reverse mapping (for editing).
+        void RegisterVar(const String& name);
+        /// Unregister a node user variable hash reverse mapping.
+        void UnregisterVar(const String& name);
+        /// Clear all registered node user variable hash reverse mappings.
+        void UnregisterAllVars();
 
     private:
         /// Handle the logic update event to update the scene, if active.
         void HandleUpdate(StringHash eventType, VariantMap& eventData);
         /// Update asynchronous loading.
         void UpdateAsyncLoading();
+        /// Finish loading. Sets the scene filename and checksum.
+        void FinishLoading(Deserializer* source);
+        /// Finish saving. Sets the scene filename and checksum.
+        void FinishSaving(Serializer* dest) const;
         /// Replicated scene nodes by ID.
         HashMap<unsigned, Node*> replicatedNodes_;
         /// Local scene nodes by ID.
@@ -124,10 +160,20 @@ namespace My3D
         HashMap<StringHash, PODVector<Node*> > taggedNodes_;
         /// Asynchronous loading progress.
         AsyncProgress asyncProgress_;
+        /// Node and component ID resolver for asynchronous loading.
+        SceneResolver resolver_;
+        /// Source file name.
+        mutable String fileName_;
+        /// Required package files for networking.
+        Vector<SharedPtr<PackageFile> > requiredPackageFiles_;
+        /// Registered node user variable reverse mappings.
+        HashMap<StringHash, String> varNames_;
         /// Nodes to check for attribute changes on the next network update.
         HashSet<unsigned> networkUpdateNodes_;
         /// Components to check for attribute changes on the next network update.
         HashSet<unsigned> networkUpdateComponents_;
+        /// Delayed dirty notification queue for components.
+        PODVector<Component*> delayedDirtyComponents_;
         /// Mutex for the delayed dirty notification queue.
         Mutex sceneMutex_;
         /// Next free non-local node ID.

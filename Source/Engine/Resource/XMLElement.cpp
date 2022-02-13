@@ -11,6 +11,8 @@
 
 namespace My3D
 {
+    const XMLElement XMLElement::EMPTY;
+
     XMLElement::XMLElement()
         : node_(nullptr)
         , xpathResultSet_(nullptr)

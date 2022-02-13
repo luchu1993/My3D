@@ -268,7 +268,8 @@ namespace My3D
 
         /// Swap with another XMLElement.
         void Swap(XMLElement& rhs);
-
+        /// Empty XMLElement.
+        static const XMLElement EMPTY;
     private:
         /// XML file
         WeakPtr<XMLFile> file_;

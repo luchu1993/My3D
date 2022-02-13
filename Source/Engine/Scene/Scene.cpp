@@ -5,6 +5,7 @@
 #include "Core/Context.h"
 #include "Core/CoreEvents.h"
 #include "IO/Log.h"
+#include "IO/PackageFile.h"
 #include "Resource/ResourceCache.h"
 #include "Resource/ResourceEvents.h"
 #include "Resource/XMLFile.h"
@@ -51,6 +52,216 @@ namespace My3D
             i->second_->ResetScene();
         for (HashMap<unsigned, Node*>::Iterator i = localNodes_.Begin(); i != localNodes_.End(); ++i)
             i->second_->ResetScene();
+    }
+
+    void Scene::RegisterObject(Context* context)
+    {
+        context->RegisterFactory<Scene>();
+        MY3D_ACCESSOR_ATTRIBUTE("Name", GetName, SetName, String, String::EMPTY, AM_DEFAULT);
+        // MY3D_ACCESSOR_ATTRIBUTE("Time Scale", GetTimeScale, SetTimeScale, float, 1.0f, AM_DEFAULT);
+    }
+
+    bool Scene::Load(Deserializer& source)
+    {
+        StopAsyncLoading();
+
+        // Check ID
+        if (source.ReadFileID() != "USCN")
+        {
+            MY3D_LOGERROR(source.GetName() + " is not a valid scene file");
+            return false;
+        }
+
+        MY3D_LOGINFO("Loading scene from " + source.GetName());
+
+        Clear();
+
+        // Load the whole scene, then perform post-load if successfully loaded
+        if (Node::Load(source))
+        {
+            FinishLoading(&source);
+            return true;
+        }
+        else
+            return false;
+    }
+
+    bool Scene::Save(Serializer& dest) const
+    {
+        // Write ID first
+        if (!dest.WriteFileID("USCN"))
+        {
+            MY3D_LOGERROR("Could not save scene, writing to stream failed");
+            return false;
+        }
+
+        auto* ptr = dynamic_cast<Deserializer*>(&dest);
+        if (ptr)
+            MY3D_LOGINFO("Saving scene to " + ptr->GetName());
+
+        if (Node::Save(dest))
+        {
+            FinishSaving(&dest);
+            return true;
+        }
+        else
+            return false;
+    }
+
+    bool Scene::LoadXML(const XMLElement& source)
+    {
+        StopAsyncLoading();
+
+        // Load the whole scene, then perform post-load if successfully loaded
+        // Note: the scene filename and checksum can not be set, as we only used an XML element
+        if (Node::LoadXML(source))
+        {
+            FinishLoading(nullptr);
+            return true;
+        }
+        else
+            return false;
+    }
+
+    void Scene::MarkNetworkUpdate()
+    {
+        if (!networkUpdate_)
+        {
+            MarkNetworkUpdate(this);
+            networkUpdate_ = true;
+        }
+    }
+
+    bool Scene::LoadXML(Deserializer& source)
+    {
+        StopAsyncLoading();
+
+        SharedPtr<XMLFile> xml(new XMLFile(context_));
+        if (!xml->Load(source))
+            return false;
+
+        MY3D_LOGINFO("Loading scene from " + source.GetName());
+
+        Clear();
+
+        if (Node::LoadXML(xml->GetRoot()))
+        {
+            FinishLoading(&source);
+            return true;
+        }
+        else
+            return false;
+    }
+
+    bool Scene::SaveXML(Serializer& dest, const String& indentation) const
+    {
+        SharedPtr<XMLFile> xml(new XMLFile(context_));
+        XMLElement rootElem = xml->CreateRoot("scene");
+        if (!SaveXML(rootElem))
+            return false;
+
+        auto* ptr = dynamic_cast<Deserializer*>(&dest);
+        if (ptr)
+            MY3D_LOGINFO("Saving scene to " + ptr->GetName());
+
+        if (xml->Save(dest, indentation))
+        {
+            FinishSaving(&dest);
+            return true;
+        }
+        else
+            return false;
+    }
+
+    bool Scene::LoadAsync(File* file, LoadMode mode)
+    {
+        if (!file)
+        {
+            MY3D_LOGERROR("Null file for async loading");
+            return false;
+        }
+
+        StopAsyncLoading();
+
+        // Check ID
+        bool isSceneFile = file->ReadFileID() == "USCN";
+        if (!isSceneFile)
+        {
+            // In resource load mode can load also object prefabs, which have no identifier
+            if (mode > LOAD_RESOURCES_ONLY)
+            {
+                MY3D_LOGERROR(file->GetName() + " is not a valid scene file");
+                return false;
+            }
+            else
+                file->Seek(0);
+        }
+
+        if (mode > LOAD_RESOURCES_ONLY)
+        {
+            MY3D_LOGINFO("Loading scene from " + file->GetName());
+            Clear();
+        }
+
+        asyncLoading_ = true;
+        asyncProgress_.file_ = file;
+        asyncProgress_.mode_ = mode;
+        asyncProgress_.loadedNodes_ = 0;
+        asyncProgress_.totalNodes_ = 0;
+        asyncProgress_.loadedResources_ = 0;
+        asyncProgress_.totalResources_ = 0;
+        asyncProgress_.resources_.Clear();
+
+        if (mode > LOAD_RESOURCES_ONLY)
+        {
+
+        }
+        else
+        {
+
+        }
+
+        return true;
+    }
+
+    void Scene::StopAsyncLoading()
+    {
+        asyncLoading_ = false;
+        asyncProgress_.file_.Reset();
+        asyncProgress_.xmlFile_.Reset();
+        asyncProgress_.xmlElement_ = XMLElement::EMPTY;
+        asyncProgress_.jsonIndex_ = 0;
+        asyncProgress_.resources_.Clear();
+        resolver_.Reset();
+    }
+
+    void Scene::Clear(bool clearReplicated, bool clearLocal)
+    {
+        StopAsyncLoading();
+
+        RemoveChildren(clearReplicated, clearLocal, true);
+        RemoveComponents(clearReplicated, clearLocal);
+
+        // Only clear name etc. if clearing completely
+        if (clearReplicated && clearLocal)
+        {
+            UnregisterAllVars();
+            SetName(String::EMPTY);
+            fileName_.Clear();
+            checksum_ = 0;
+        }
+
+        // Reset ID generators
+        if (clearReplicated)
+        {
+            replicatedNodeID_ = FIRST_REPLICATED_ID;
+            replicatedComponentID_ = FIRST_REPLICATED_ID;
+        }
+        if (clearLocal)
+        {
+            localNodeID_ = FIRST_LOCAL_ID;
+            localComponentID_ = FIRST_LOCAL_ID;
+        }
     }
 
     unsigned Scene::GetFreeNodeID(CreateMode mode)
@@ -352,6 +563,21 @@ namespace My3D
         }
     }
 
+    void Scene::RegisterVar(const String& name)
+    {
+        varNames_[name] = name;
+    }
+
+    void Scene::UnregisterVar(const String& name)
+    {
+        varNames_.Erase(name);
+    }
+
+    void Scene::UnregisterAllVars()
+    {
+        varNames_.Clear();
+    }
+
     void Scene::Update(float timeStep)
     {
         if (asyncLoading_)
@@ -392,6 +618,25 @@ namespace My3D
 
     }
 
+    void Scene::FinishLoading(Deserializer* source)
+    {
+        if (source)
+        {
+            fileName_ = source->GetName();
+            checksum_ = source->GetChecksum();
+        }
+    }
+
+    void Scene::FinishSaving(Serializer* dest) const
+    {
+        auto* ptr = dynamic_cast<Deserializer*>(dest);
+        if (ptr)
+        {
+            fileName_ = ptr->GetName();
+            checksum_ = ptr->GetChecksum();
+        }
+    }
+
     void Scene::HandleUpdate(StringHash eventType, VariantMap& eventData)
     {
         if (!updateEnabled_)
@@ -400,4 +645,5 @@ namespace My3D
         using namespace Update;
         Update(eventData[P_TIMESTEP].GetFloat());
     }
+
 }
