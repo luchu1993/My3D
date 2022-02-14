@@ -112,6 +112,20 @@ namespace My3D
         bool IsOccluder() const { return occluder_; }
         /// Return occludee flag.
         bool IsOccludee() const { return occludee_; }
+        /// Set sorting value.
+        void SetSortValue(float value) { sortValue_ = value; }
+        /// Return octree octant.
+        Octant* GetOctant() const { return octant_; }
+        /// Return current zone.
+        Zone* GetZone() const { return zone_; }
+        /// Return whether current zone is inconclusive or dirty due to the drawable moving.
+        bool IsZoneDirty() const { return zoneDirty_; }
+        /// Return distance from camera.
+        float GetDistance() const { return distance_; }
+        /// Return LOD scaled distance from camera.
+        float GetLodDistance() const { return lodDistance_; }
+        /// Return sorting value.
+        float GetSortValue() const { return sortValue_; }
 
 protected:
         /// Handle node being assigned.
@@ -192,4 +206,9 @@ protected:
         /// Per-vertex lights affecting this drawable.
         PODVector<Light*> vertexLights_;
     };
+
+    inline bool CompareDrawables(Drawable* lhs, Drawable* rhs)
+    {
+        return lhs->GetSortValue() < rhs->GetSortValue();
+    }
 }

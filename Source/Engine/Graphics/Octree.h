@@ -140,6 +140,18 @@ namespace My3D
         void SetSize(const BoundingBox& box, unsigned numLevels);
         /// Update and reinsert drawable objects.
         void Update(const FrameInfo& frame);
+        /// Add a drawable manually.
+        void AddManualDrawable(Drawable* drawable);
+        /// Remove a manually added drawable.
+        void RemoveManualDrawable(Drawable* drawable);
+
+        /// Return drawable objects by a query.
+        void GetDrawables(OctreeQuery& query) const;
+        /// Return drawable objects by a ray query.
+        void Raycast(RayOctreeQuery& query) const;
+        /// Return the closest drawable object by a ray query.
+        void RaycastSingle(RayOctreeQuery& query) const;
+
         /// Return subdivision levels.
         unsigned GetNumLevels() const { return numLevels_; }
         /// Mark drawable object as requiring an update and a reinsertion.
@@ -152,6 +164,8 @@ namespace My3D
     private:
         /// Handle render update in case of headless execution.
         void HandleRenderUpdate(StringHash eventType, VariantMap& eventData);
+        /// Update octree size.
+        void UpdateOctreeSize() { SetSize(worldBoundingBox_, numLevels_); }
         /// Drawable objects that require update.
         PODVector<Drawable*> drawableUpdates_;
         /// Drawable objects that were inserted during threaded update phase.

@@ -2,6 +2,7 @@
 // Created by luchu on 2022/2/13.
 //
 
+#include "Container/Sort.h"
 #include "Graphics/Octree.h"
 #include "Core/Context.h"
 #include "Core/CoreEvents.h"
@@ -18,6 +19,26 @@ namespace My3D
 {
     static const float DEFAULT_OCTREE_SIZE = 1000.0f;
     static const int DEFAULT_OCTREE_LEVELS = 8;
+
+    void UpdateDrawablesWork(const WorkItem* item, unsigned threadIndex)
+    {
+        const FrameInfo& frame = *(reinterpret_cast<FrameInfo*>(item->aux_));
+        auto** start = reinterpret_cast<Drawable**>(item->start_);
+        auto** end = reinterpret_cast<Drawable**>(item->end_);
+
+        while (start != end)
+        {
+            Drawable* drawable = *start;
+            if (drawable)
+                drawable->Update(frame);
+            ++start;
+        }
+    }
+
+    inline bool CompareRayQueryResults(const RayQueryResult& lhs, const RayQueryResult& rhs)
+    {
+        return lhs.distance_ < rhs.distance_;
+    }
 
     Octant::Octant(const BoundingBox &box, unsigned int level, Octant *parent, Octree *root, unsigned int index)
         : level_(level)
@@ -276,6 +297,75 @@ namespace My3D
         {
             MY3D_LOGERROR("Octree::Update() can not be called from worker threads");
             return;
+        }
+    }
+
+    void Octree::AddManualDrawable(Drawable* drawable)
+    {
+        if (!drawable || drawable->GetOctant())
+            return;
+
+        AddDrawable(drawable);
+    }
+
+    void Octree::RemoveManualDrawable(Drawable* drawable)
+    {
+        if (!drawable)
+            return;
+
+        Octant* octant = drawable->GetOctant();
+        if (octant && octant->GetRoot() == this)
+            octant->RemoveDrawable(drawable);
+    }
+
+    void Octree::GetDrawables(OctreeQuery& query) const
+    {
+        query.result_.Clear();
+        GetDrawablesInternal(query, false);
+    }
+
+    void Octree::Raycast(RayOctreeQuery& query) const
+    {
+        query.result_.Clear();
+        GetDrawablesInternal(query);
+        Sort(query.result_.Begin(), query.result_.End(), CompareRayQueryResults);
+    }
+
+    void Octree::RaycastSingle(RayOctreeQuery& query) const
+    {
+        query.result_.Clear();
+        rayQueryDrawables_.Clear();
+        GetDrawablesOnlyInternal(query, rayQueryDrawables_);
+
+        // Sort by increasing hit distance to AABB
+        for (PODVector<Drawable*>::Iterator i = rayQueryDrawables_.Begin(); i != rayQueryDrawables_.End(); ++i)
+        {
+            Drawable* drawable = *i;
+            drawable->SetSortValue(query.ray_.HitDistance(drawable->GetWorldBoundingBox()));
+        }
+
+        Sort(rayQueryDrawables_.Begin(), rayQueryDrawables_.End(), CompareDrawables);
+
+        // Then do the actual test according to the query, and early-out as possible
+        float closestHit = M_INFINITY;
+        for (PODVector<Drawable*>::Iterator i = rayQueryDrawables_.Begin(); i != rayQueryDrawables_.End(); ++i)
+        {
+            Drawable* drawable = *i;
+            if (drawable->GetSortValue() < Min(closestHit, query.maxDistance_))
+            {
+                unsigned oldSize = query.result_.Size();
+                drawable->ProcessRayQuery(query, query.result_);
+                if (query.result_.Size() > oldSize)
+                    closestHit = Min(closestHit, query.result_.Back().distance_);
+            }
+            else
+                break;
+        }
+
+        if (query.result_.Size() > 1)
+        {
+            Sort(query.result_.Begin(), query.result_.End(), CompareRayQueryResults);
+            query.result_.Resize(1);
         }
     }
 
