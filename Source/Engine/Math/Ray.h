@@ -16,6 +16,7 @@ namespace My3D
     /// Infinite straight line in three-dimensional space.
     class MY3D_API Ray
     {
+    public:
         /// Construct a degenerate ray with zero origin and direction.
         Ray() noexcept = default;
         /// Construct from origin and direction. The direction will be normalized.

@@ -36,8 +36,7 @@ namespace My3D
             {
                 (*i)->SetOctant(root_);
                 root_->drawables_.Push(*i);
-                // TODO
-                // root_->QueueUpdate(*i);
+                root_->QueueUpdate(*i);
             }
             drawables_.Clear();
             numDrawables_ = 0;
@@ -145,6 +144,88 @@ namespace My3D
         cullingBox_ = BoundingBox(worldBoundingBox_.min_ - halfSize_, worldBoundingBox_.max_ + halfSize_);
     }
 
+    void Octant::GetDrawablesInternal(OctreeQuery &query, bool inside) const
+    {
+        if (this != root_)
+        {
+            Intersection res = query.TestOctant(cullingBox_, inside);
+            if (res == INSIDE)
+                inside = true;
+            else if (res == OUTSIDE)
+            {
+                // Fully outside, so cull this octant, its children & drawables
+                return;
+            }
+        }
+
+        if (drawables_.Size())
+        {
+            auto** start = const_cast<Drawable**>(&drawables_[0]);
+            Drawable** end = start + drawables_.Size();
+            query.TestDrawables(start, end, inside);
+        }
+
+        for (auto child : children_)
+        {
+            if (child)
+                child->GetDrawablesInternal(query, inside);
+        }
+    }
+
+    void Octant::GetDrawablesInternal(RayOctreeQuery& query) const
+    {
+        float octantDist = query.ray_.HitDistance(cullingBox_);
+        if (octantDist >= query.maxDistance_)
+            return;
+
+        if (drawables_.Size())
+        {
+            auto** start = const_cast<Drawable**>(&drawables_[0]);
+            Drawable** end = start + drawables_.Size();
+
+            while (start != end)
+            {
+                Drawable* drawable = *start++;
+
+                if ((drawable->GetDrawableFlags() & query.drawableFlags_) && (drawable->GetViewMask() & query.viewMask_))
+                    drawable->ProcessRayQuery(query, query.result_);
+            }
+        }
+
+        for (auto child : children_)
+        {
+            if (child)
+                child->GetDrawablesInternal(query);
+        }
+    }
+
+    void Octant::GetDrawablesOnlyInternal(RayOctreeQuery& query, PODVector<Drawable*>& drawables) const
+    {
+        float octantDist = query.ray_.HitDistance(cullingBox_);
+        if (octantDist >= query.maxDistance_)
+            return;
+
+        if (drawables_.Size())
+        {
+            auto** start = const_cast<Drawable**>(&drawables_[0]);
+            Drawable** end = start + drawables_.Size();
+
+            while (start != end)
+            {
+                Drawable* drawable = *start++;
+
+                if ((drawable->GetDrawableFlags() & query.drawableFlags_) && (drawable->GetViewMask() & query.viewMask_))
+                    drawables.Push(drawable);
+            }
+        }
+
+        for (auto child : children_)
+        {
+            if (child)
+                child->GetDrawablesOnlyInternal(query, drawables);
+        }
+    }
+
     void Octant::ResetRoot()
     {
         root_ = nullptr;
@@ -178,6 +259,48 @@ namespace My3D
         ResetRoot();
     }
 
+    void Octree::SetSize(const BoundingBox& box, unsigned numLevels)
+    {
+        // If drawables exist, they are temporarily moved to the root
+        for (unsigned i = 0; i < NUM_OCTANTS; ++i)
+            DeleteChild(i);
+
+        Initialize(box);
+        numDrawables_ = drawables_.Size();
+        numLevels_ = Max(numLevels, 1U);
+    }
+
+    void Octree::Update(const FrameInfo& frame)
+    {
+        if (!Thread::IsMainThread())
+        {
+            MY3D_LOGERROR("Octree::Update() can not be called from worker threads");
+            return;
+        }
+    }
+
+    void Octree::QueueUpdate(Drawable* drawable)
+    {
+        Scene* scene = GetScene();
+        if (scene && scene->IsThreadedUpdate())
+        {
+            MutexLock lock(octreeMutex_);
+            threadedDrawableUpdates_.Push(drawable);
+        }
+        else
+            drawableUpdates_.Push(drawable);
+
+        drawable->updateQueued_ = true;
+    }
+
+    void Octree::CancelUpdate(Drawable* drawable)
+    {
+        // This doesn't have to take into account scene being in threaded update, because it is called only
+        // when removing a drawable from octree, which should only ever happen from the main thread.
+        drawableUpdates_.Remove(drawable);
+        drawable->updateQueued_ = false;
+    }
+
     void Octree::HandleRenderUpdate(StringHash eventType, VariantMap &eventData)
     {
         // When running in headless mode, update the Octree manually during the RenderUpdate event
@@ -193,10 +316,5 @@ namespace My3D
         frame.camera_ = nullptr;
 
         Update(frame);
-    }
-
-    void Octree::Update(const FrameInfo& frame)
-    {
-
     }
 }

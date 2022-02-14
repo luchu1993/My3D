@@ -6,6 +6,7 @@
 
 #include "Core/Mutex.h"
 #include "Graphics/Drawable.h"
+#include "Graphics/OctreeQuery.h"
 
 
 namespace My3D
@@ -65,12 +66,17 @@ namespace My3D
         bool IsEmpty() { return numDrawables_ == 0; }
         /// Reset root pointer recursively. Called when the whole octree is being destroyed.
         void ResetRoot();
-        /// Draw bounds to the debug graphics recursively.
-        void DrawDebugGeometry(DebugRenderer* debug, bool depthTest);
 
     protected:
         /// Initialize bounding box
         void Initialize(const BoundingBox& box);
+        /// Return drawable objects by a query, called internally.
+        void GetDrawablesInternal(OctreeQuery& query, bool inside) const;
+        /// Return drawable objects by a ray query, called internally.
+        void GetDrawablesInternal(RayOctreeQuery& query) const;
+        /// Return drawable objects only for a threaded ray query, called internally.
+        void GetDrawablesOnlyInternal(RayOctreeQuery& query, PODVector<Drawable*>& drawables) const;
+
         /// Increase drawable object count recursively.
         void IncDrawableCount()
         {
@@ -94,7 +100,6 @@ namespace My3D
                 parent->DecDrawableCount();
         }
 
-    private:
         /// World bounding box
         BoundingBox worldBoundingBox_;
         /// Bounding box used for drawable object fitting.
@@ -130,6 +135,9 @@ namespace My3D
         ~Octree() override;
         /// Register object factory
         static void RegisterObject(Context* const);
+
+        /// Set size and maximum subdivision levels. If octree is not empty, drawable objects will be temporarily moved to the root.
+        void SetSize(const BoundingBox& box, unsigned numLevels);
         /// Update and reinsert drawable objects.
         void Update(const FrameInfo& frame);
         /// Return subdivision levels.
