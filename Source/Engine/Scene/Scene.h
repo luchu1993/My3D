@@ -132,6 +132,10 @@ namespace My3D
         Component* GetComponent(unsigned id) const;
         /// Update scene. Called by HandleUpdate.
         void Update(float timeStep);
+        /// Begin a threaded update. During threaded update components can choose to delay dirty processing.
+        void BeginThreadedUpdate();
+        /// End a threaded update. Notify components that marked themselves for delayed dirty processing.
+        void EndThreadedUpdate();
         /// Register a node user variable hash reverse mapping (for editing).
         void RegisterVar(const String& name);
         /// Unregister a node user variable hash reverse mapping.

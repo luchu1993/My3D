@@ -14,6 +14,7 @@
 #include "Scene/Scene.h"
 #include "Scene/SceneEvents.h"
 #include "Scene/ValueAnimation.h"
+#include "Core/WorkQueue.h"
 
 
 namespace My3D
@@ -611,6 +612,28 @@ namespace My3D
         // primarily to update material animation effects, as it is available to shaders. It can be reset by calling
         // SetElapsedTime()
         elapsedTime_ += timeStep;
+    }
+
+    void Scene::BeginThreadedUpdate()
+    {
+        // Check the work queue subsystem whether it actually has created worker threads. If not, do not enter threaded mode.
+        if (GetSubsystem<WorkQueue>()->GetNumThreads())
+            threadedUpdate_ = true;
+    }
+
+    void Scene::EndThreadedUpdate()
+    {
+        if (!threadedUpdate_)
+            return;
+
+        threadedUpdate_ = false;
+
+        if (!delayedDirtyComponents_.Empty())
+        {
+            for (PODVector<Component*>::ConstIterator i = delayedDirtyComponents_.Begin(); i != delayedDirtyComponents_.End(); ++i)
+                (*i)->OnMarkedDirty((*i)->GetNode());
+            delayedDirtyComponents_.Clear();
+        }
     }
 
     void Scene::UpdateAsyncLoading()

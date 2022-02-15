@@ -140,4 +140,12 @@ namespace My3D
         MY3D_PARAM(P_COMPONENT, Component);           // Component pointer
         MY3D_PARAM(P_CLONECOMPONENT, CloneComponent); // Component pointer
     }
+
+    /// Scene drawable update finished. Custom animation (eg. IK) can be done at this point.
+    MY3D_EVENT(E_SCENEDRAWABLEUPDATEFINISHED, SceneDrawableUpdateFinished)
+    {
+        MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+        MY3D_PARAM(P_TIMESTEP, TimeStep);            // float
+    }
+
 }
