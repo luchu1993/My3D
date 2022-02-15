@@ -176,10 +176,10 @@ namespace My3D
     /// Remove attribute by name
     #define MY3D_REMOVE_ATTRIBUTE(name) context->RemoveAttribute<Type>(name)
     /// Define an object member attribute
-    #define MY3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) context->ResgiterAttribute<Type>(My3D::AttributeInfo( \
+    #define MY3D_ATTRIBUTE(name, typeName, variable, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \
         My3D::GetVariantType<typeName>(), name, MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR(typeName, variable), nullptr, defaultValue, mode))
     /// Define an object member attribute. Post-set member function callback is called when attribute set
-    #define MY3D_ATTRIBUTE_EX(name, typeName, variable, postSetCallback, defaultValue, mode) context->ResgiterAttribute<Type>(My3D::AttributeInfo( \
+    #define MY3D_ATTRIBUTE_EX(name, typeName, variable, postSetCallback, defaultValue, mode) context->RegitserAttribute<Type>(My3D::AttributeInfo( \
         My3D::GetVariantType<typeName>(), name, MY3D_MAKE_MEMBER_ATTRIBUTE_ACCESSOR_EX(typeName, variable, postSetCallback), nullptr, defaultValue, mode))
     /// Define an attribute that uses get and set functions
     #define MY3D_ACCESSOR_ATTRIBUTE(name, getFunction, setFunction, typeName, defaultValue, mode) context->RegisterAttribute<Type>(My3D::AttributeInfo( \

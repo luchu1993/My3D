@@ -7,6 +7,86 @@
 #include "My3D.h"
 #include "Container/FlagSet.h"
 
+/// Primitive type.
+enum PrimitiveType
+{
+    TRIANGLE_LIST = 0,
+    LINE_LIST,
+    POINT_LIST,
+    TRIANGLE_STRIP,
+    LINE_STRIP,
+    TRIANGLE_FAN
+};
+
+/// Geometry type for vertex shader geometry variations.
+enum GeometryType
+{
+    GEOM_STATIC = 0,
+    GEOM_SKINNED = 1,
+    GEOM_INSTANCED = 2,
+    GEOM_BILLBOARD = 3,
+    GEOM_DIRBILLBOARD = 4,
+    GEOM_TRAIL_FACE_CAMERA = 5,
+    GEOM_TRAIL_BONE = 6,
+    MAX_GEOMETRYTYPES = 7,
+    // This is not a real geometry type for VS, but used to mark objects that do not desire to be instanced
+    GEOM_STATIC_NOINSTANCING = 7,
+};
+
+/// Blending mode.
+enum BlendMode
+{
+    BLEND_REPLACE = 0,
+    BLEND_ADD,
+    BLEND_MULTIPLY,
+    BLEND_ALPHA,
+    BLEND_ADDALPHA,
+    BLEND_PREMULALPHA,
+    BLEND_INVDESTALPHA,
+    BLEND_SUBTRACT,
+    BLEND_SUBTRACTALPHA,
+    MAX_BLENDMODES
+};
+
+/// Depth or stencil compare mode.
+enum CompareMode
+{
+    CMP_ALWAYS = 0,
+    CMP_EQUAL,
+    CMP_NOTEQUAL,
+    CMP_LESS,
+    CMP_LESSEQUAL,
+    CMP_GREATER,
+    CMP_GREATEREQUAL,
+    MAX_COMPAREMODES
+};
+
+/// Culling mode.
+enum CullMode
+{
+    CULL_NONE = 0,
+    CULL_CCW,
+    CULL_CW,
+    MAX_CULLMODES
+};
+
+/// Fill mode.
+enum FillMode
+{
+    FILL_SOLID = 0,
+    FILL_WIREFRAME,
+    FILL_POINT
+};
+
+/// Stencil operation.
+enum StencilOp
+{
+    OP_KEEP = 0,
+    OP_ZERO,
+    OP_REF,
+    OP_INCR,
+    OP_DECR
+};
 
 enum ClearTarget : unsigned
 {
@@ -102,6 +182,17 @@ enum TextureUnit
     TU_ZONE = 15,
     MAX_MATERIAL_TEXTURE_UNITS = 8,
     MAX_TEXTURE_UNITS = 16
+};
+/// Billboard camera facing modes.
+enum FaceCameraMode
+{
+    FC_NONE = 0,
+    FC_ROTATE_XYZ,
+    FC_ROTATE_Y,
+    FC_LOOKAT_XYZ,
+    FC_LOOKAT_Y,
+    FC_LOOKAT_MIXED,
+    FC_DIRECTION,
 };
 /// Vertex/index buffer lock state.
 enum LockState

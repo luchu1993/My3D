@@ -106,7 +106,6 @@ namespace My3D
         /// Perform autoremove. Called by subclasses. Caller should keep a weak pointer to itself to check whether was actually removed, and return immediately without further member operations in that case.
         void DoAutoRemove(AutoRemoveMode mode);
 
-    private:
         /// Scene node.
         Node* node_;
         /// Unique ID within the scene.
