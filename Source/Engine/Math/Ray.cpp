@@ -159,4 +159,45 @@ namespace My3D
         else
             return (-b + dSqrt) / (2.0f * a);
     }
+
+    float Ray::HitDistance(const Vector3& v0, const Vector3& v1, const Vector3& v2, Vector3* outNormal, Vector3* outBary) const
+    {
+        // Based on Fast, Minimum Storage Ray/Triangle Intersection by Möller & Trumbore
+        // http://www.graphics.cornell.edu/pubs/1997/MT97.pdf
+        // Calculate edge vectors
+        Vector3 edge1(v1 - v0);
+        Vector3 edge2(v2 - v0);
+
+        // Calculate determinant & check backfacing
+        Vector3 p(direction_.CrossProduct(edge2));
+        float det = edge1.DotProduct(p);
+        if (det >= M_EPSILON)
+        {
+            // Calculate u & v parameters and test
+            Vector3 t(origin_ - v0);
+            float u = t.DotProduct(p);
+            if (u >= 0.0f && u <= det)
+            {
+                Vector3 q(t.CrossProduct(edge1));
+                float v = direction_.DotProduct(q);
+                if (v >= 0.0f && u + v <= det)
+                {
+                    float distance = edge2.DotProduct(q) / det;
+                    // Discard hits behind the ray
+                    if (distance >= 0.0f)
+                    {
+                        // There is an intersection, so calculate distance & optional normal
+                        if (outNormal)
+                            *outNormal = edge1.CrossProduct(edge2);
+                        if (outBary)
+                            *outBary = Vector3(1 - (u / det) - (v / det), u / det, v / det);
+
+                        return distance;
+                    }
+                }
+            }
+        }
+
+        return M_INFINITY;
+    }
 }

@@ -58,6 +58,9 @@ namespace My3D
         float HitDistance(const Frustum& frustum, bool solidInside = true) const;
         /// Return hit distance to a sphere, or infinity if no hit.
         float HitDistance(const Sphere& sphere) const;
+        /// Return hit distance to a triangle, or infinity if no hit. Optionally return hit normal and hit barycentric coordinate at intersect point.
+        float HitDistance(const Vector3& v0, const Vector3& v1, const Vector3& v2, Vector3* outNormal = nullptr, Vector3* outBary = nullptr) const;
+
         /// Ray origin.
         Vector3 origin_;
         /// Ray direction.

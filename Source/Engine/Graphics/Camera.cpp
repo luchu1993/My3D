@@ -53,6 +53,13 @@ namespace My3D
         , customProjection_(false)
     {
         reflectionMatrix_ = reflectionPlane_.ReflectionMatrix();
+    }
+
+    Camera::~Camera() = default;
+
+    void Camera::RegisterObject(Context *context)
+    {
+        context->RegisterFactory<Camera>(SCENE_CATEGORY);
 
         MY3D_ACCESSOR_ATTRIBUTE("Is Enabled", IsEnabled, SetEnabled, bool, true, AM_DEFAULT);
         MY3D_ACCESSOR_ATTRIBUTE("Near Clip", GetNearClip, SetNearClip, float, DEFAULT_NEARCLIP, AM_DEFAULT);
@@ -61,13 +68,6 @@ namespace My3D
         MY3D_ACCESSOR_ATTRIBUTE("Aspect Ratio", GetAspectRatio, SetAspectRatioInternal, float, 1.0f, AM_DEFAULT);
         MY3D_ENUM_ATTRIBUTE("Fill Mode", fillMode_, fillModeNames, FILL_SOLID, AM_DEFAULT);
         MY3D_ATTRIBUTE("Auto Aspect Ratio", bool, autoAspectRatio_, true, AM_DEFAULT);
-    }
-
-    Camera::~Camera() = default;
-
-    void Camera::RegisterObject(Context *context)
-    {
-        context->RegisterFactory<Camera>(SCENE_CATEGORY);
     }
 
     void Camera::DrawDebugGeometry(DebugRenderer *debug, bool depthTest)
@@ -272,12 +272,172 @@ namespace My3D
         return frustum_;
     }
 
+    Ray Camera::GetScreenRay(float x, float y) const
+    {
+        Ray ret;
+
+        // If projection is invalid, just return a ray pointing forward
+        if (!IsProjectionValid())
+        {
+            ret.origin_ = node_ ? node_->GetWorldPosition() : Vector3::ZERO;
+            ret.direction_ = node_ ? node_->GetWorldDirection() : Vector3::FORWARD;
+            return ret;
+        }
+
+        Matrix4 viewProjInverse = (GetProjection() * GetView()).Inverse();
+
+        // The parameters range from 0.0 to 1.0. Expand to normalized device coordinates (-1.0 to 1.0) & flip Y axis
+        x = 2.0f * x - 1.0f;
+        y = 1.0f - 2.0f * y;
+        Vector3 near(x, y, 0.0f);
+        Vector3 far(x, y, 1.0f);
+
+        ret.origin_ = viewProjInverse * near;
+        ret.direction_ = ((viewProjInverse * far) - ret.origin_).Normalized();
+        return ret;
+    }
+
+    Vector2 Camera::WorldToScreenPoint(const Vector3& worldPos) const
+    {
+        Vector3 eyeSpacePos = GetView() * worldPos;
+        Vector2 ret;
+
+        if (eyeSpacePos.z_ > 0.0f)
+        {
+            Vector3 screenSpacePos = GetProjection() * eyeSpacePos;
+            ret.x_ = screenSpacePos.x_;
+            ret.y_ = screenSpacePos.y_;
+        }
+        else
+        {
+            ret.x_ = (-eyeSpacePos.x_ > 0.0f) ? -1.0f : 1.0f;
+            ret.y_ = (-eyeSpacePos.y_ > 0.0f) ? -1.0f : 1.0f;
+        }
+
+        ret.x_ = (ret.x_ / 2.0f) + 0.5f;
+        ret.y_ = 1.0f - ((ret.y_ / 2.0f) + 0.5f);
+        return ret;
+    }
+
+    Vector3 Camera::ScreenToWorldPoint(const Vector3& screenPos) const
+    {
+        Ray ray = GetScreenRay(screenPos.x_, screenPos.y_);
+        Vector3 viewSpaceDir = (GetView() * Vector4(ray.direction_, 0.0f));
+        float rayDistance = (Max(screenPos.z_ - GetNearClip(), 0.0f) / viewSpaceDir.z_);
+        return ray.origin_ + ray.direction_ * rayDistance;
+    }
+
+    Matrix4 Camera::GetGPUProjection() const
+    {
+#ifndef MY3D_OPENGL
+        return GetProjection(); // Already matches API-specific format
+#else
+        Matrix4 ret = GetProjection();
+
+        ret.m20_ = 2.0f * ret.m20_ - ret.m30_;
+        ret.m21_ = 2.0f * ret.m21_ - ret.m31_;
+        ret.m22_ = 2.0f * ret.m22_ - ret.m32_;
+        ret.m23_ = 2.0f * ret.m23_ - ret.m33_;
+
+        return ret;
+#endif
+    }
+
     Matrix4 Camera::GetProjection() const
     {
         if (projectionDirty_)
             UpdateProjection();
 
         return flipVertical_ ? flipMatrix * projection_ : projection_;
+    }
+
+    void Camera::GetFrustumSize(Vector3& near, Vector3& far) const
+    {
+        Frustum viewSpaceFrustum = GetViewSpaceFrustum();
+        near = viewSpaceFrustum.vertices_[0];
+        far = viewSpaceFrustum.vertices_[4];
+
+        /// \todo Necessary? Explain this
+        if (flipVertical_)
+        {
+            near.y_ = -near.y_;
+            far.y_ = -far.y_;
+        }
+    }
+
+    Frustum Camera::GetViewSpaceFrustum() const
+    {
+        if (projectionDirty_)
+            UpdateProjection();
+
+        Frustum ret;
+
+        if (customProjection_)
+            ret.Define(projection_);
+        else
+        {
+            if (!orthographic_)
+                ret.Define(fov_, aspectRatio_, zoom_, GetNearClip(), GetFarClip());
+            else
+                ret.DefineOrtho(orthoSize_, aspectRatio_, zoom_, GetNearClip(), GetFarClip());
+        }
+
+        return ret;
+    }
+
+    Frustum Camera::GetSplitFrustum(float nearClip, float farClip) const
+    {
+        if (projectionDirty_)
+            UpdateProjection();
+
+        nearClip = Max(nearClip, projNearClip_);
+        farClip = Min(farClip, projFarClip_);
+        if (farClip < nearClip)
+            farClip = nearClip;
+
+        Frustum ret;
+
+        if (customProjection_)
+        {
+            // DefineSplit() needs to project the near & far distances, so can not use a combined view-projection matrix.
+            // Transform to world space afterward instead
+            ret.DefineSplit(projection_, nearClip, farClip);
+            ret.Transform(GetEffectiveWorldTransform());
+        }
+        else
+        {
+            if (!orthographic_)
+                ret.Define(fov_, aspectRatio_, zoom_, nearClip, farClip, GetEffectiveWorldTransform());
+            else
+                ret.DefineOrtho(orthoSize_, aspectRatio_, zoom_, nearClip, farClip, GetEffectiveWorldTransform());
+        }
+
+        return ret;
+    }
+
+    Frustum Camera::GetViewSpaceSplitFrustum(float nearClip, float farClip) const
+    {
+        if (projectionDirty_)
+            UpdateProjection();
+
+        nearClip = Max(nearClip, projNearClip_);
+        farClip = Min(farClip, projFarClip_);
+        if (farClip < nearClip)
+            farClip = nearClip;
+
+        Frustum ret;
+
+        if (customProjection_)
+            ret.DefineSplit(projection_, nearClip, farClip);
+        else
+        {
+            if (!orthographic_)
+                ret.Define(fov_, aspectRatio_, zoom_, nearClip, farClip);
+            else
+                ret.DefineOrtho(orthoSize_, aspectRatio_, zoom_, nearClip, farClip);
+        }
+
+        return ret;
     }
 
     float Camera::GetDistance(const Vector3& worldPos) const
@@ -389,6 +549,46 @@ namespace My3D
 
     void Camera::UpdateProjection() const
     {
+        // Start from a zero matrix in case it was custom previously
+        projection_ = Matrix4::ZERO;
 
+        if (!orthographic_)
+        {
+            float h = (1.0f / tanf(fov_ * M_DEGTORAD * 0.5f)) * zoom_;
+            float w = h / aspectRatio_;
+            float q = farClip_ / (farClip_ - nearClip_);
+            float r = -q * nearClip_;
+
+            projection_.m00_ = w;
+            projection_.m02_ = projectionOffset_.x_ * 2.0f;
+            projection_.m11_ = h;
+            projection_.m12_ = projectionOffset_.y_ * 2.0f;
+            projection_.m22_ = q;
+            projection_.m23_ = r;
+            projection_.m32_ = 1.0f;
+            projNearClip_ = nearClip_;
+            projFarClip_ = farClip_;
+        }
+        else
+        {
+            float h = (1.0f / (orthoSize_ * 0.5f)) * zoom_;
+            float w = h / aspectRatio_;
+            float q = 1.0f / farClip_;
+            float r = 0.0f;
+
+            projection_.m00_ = w;
+            projection_.m03_ = projectionOffset_.x_ * 2.0f;
+            projection_.m11_ = h;
+            projection_.m13_ = projectionOffset_.y_ * 2.0f;
+            projection_.m22_ = q;
+            projection_.m23_ = r;
+            projection_.m33_ = 1.0f;
+            // Near clip does not affect depth accuracy in ortho projection, so let it stay 0 to avoid problems with shader depth parameters
+            projNearClip_ = 0.0f;
+            projFarClip_ = farClip_;
+        }
+
+        projectionDirty_ = false;
+        customProjection_ = false;
     }
 }
