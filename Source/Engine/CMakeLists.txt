@@ -11,6 +11,4 @@ if (MY3D_SHARED)
     set(ENGINE_BUILD_TYPE SHARED)
 endif()
 
-message(STATUS "Engine Build Type " ${ENGINE_BUILD_TYPE})
-
 setup_library(${ENGINE_BUILD_TYPE})

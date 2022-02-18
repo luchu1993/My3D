@@ -5,13 +5,22 @@ define_platform_config()
 
 
 # Add third party targets
-set(THIRD_PARTY_LIBS SDL2 LZ4 PugiXML)
+set(THIRD_PARTY_LIBS SDL2 LZ4 PugiXML ETCPACK)
 
-foreach (TARGET ${THIRD_PARTY_LIBS})
-    add_subdirectory (ThirdParty/${TARGET})
+foreach (LIB ${THIRD_PARTY_LIBS})
+    add_subdirectory (ThirdParty/${LIB})
 endforeach ()
 
+# Header only target
+set(THIRD_PARTY_HEADERS STB)
+foreach (LIB ${THIRD_PARTY_HEADERS})
+    add_subdirectory (ThirdParty/${LIB})
+endforeach ()
+
+# Engine source
 add_subdirectory(Engine)
+
+# Samples
 add_subdirectory(Samples)
 
 # Testing
