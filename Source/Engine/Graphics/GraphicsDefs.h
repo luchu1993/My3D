@@ -268,5 +268,13 @@ struct MY3D_API VertexElement
     unsigned offset_;
 };
 
+enum MaterialQuality : unsigned
+{
+    QUALITY_LOW = 0,
+    QUALITY_MEDIUM = 1,
+    QUALITY_HIGH = 2,
+    QUALITY_MAX = 15,
+};
+
 /// Sizes of vertex element types.
 extern MY3D_API const unsigned ELEMENT_TYPESIZES[];

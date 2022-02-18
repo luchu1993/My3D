@@ -239,6 +239,17 @@ namespace My3D
         /// Return current vertex buffer by index.
         VertexBuffer* GetVertexBuffer(unsigned index) const;
 
+        /// Return texture unit index by name.
+        TextureUnit GetTextureUnit(const String& name);
+        /// Return texture unit name by index.
+        const String& GetTextureUnitName(TextureUnit unit);
+        /// Return current texture by texture unit index.
+        Texture* GetTexture(unsigned index) const;
+        /// Return default texture filtering mode.
+        TextureFilterMode GetDefaultTextureFilterMode() const { return defaultTextureFilterMode_; }
+        /// Return default texture max. anisotropy level.
+        unsigned GetDefaultTextureAnisotropy() const { return defaultTextureAnisotropy_; }
+
     private:
         /// Create the application window.
         bool OpenWindow(int width, int height, bool resizable, bool borderless);
@@ -321,22 +332,26 @@ namespace My3D
         String orientations_;
         /// Graphics API name
         String apiName_;
+        /// Textures in use.
+        Texture* textures_[MAX_TEXTURE_UNITS]{};
+        /// Texture unit mappings.
+        HashMap<String, TextureUnit> textureUnits_;
         /// Rendertargets in use.
         RenderSurface* renderTargets_[MAX_RENDERTARGETS]{};
         /// Depth-stencil surface in use.
         RenderSurface* depthStencil_{};
         /// Viewport coordinates.
         IntRect viewport_;
+        /// Default texture filtering mode.
+        TextureFilterMode defaultTextureFilterMode_{FILTER_TRILINEAR};
+        /// Default texture max. anisotropy level.
+        unsigned defaultTextureAnisotropy_{4};
         /// Largest scratch buffer request this frame.
         unsigned maxScratchBufferRequest_{};
         /// GPU objects.
         PODVector<GPUObject*> gpuObjects_;
         /// Scratch buffers.
         Vector<ScratchBuffer> scratchBuffers_;
-        /// Textures in use.
-        Texture* textures_[MAX_TEXTURE_UNITS]{};
-        /// Texture unit mappings.
-        HashMap<String, TextureUnit> textureUnits_;
     };
 
     /// Register Graphics library objects
