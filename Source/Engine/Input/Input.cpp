@@ -125,7 +125,7 @@ namespace My3D
             SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
             if (win == (SDL_Window*)data)
             {
-                if (auto* ctx = (Context*)SDL_GetWindowData(win, "URHO3D_CONTEXT"))
+                if (auto* ctx = (Context*)SDL_GetWindowData(win, "MY3D_CONTEXT"))
                 {
                     if (auto* graphics = ctx->GetSubsystem<Graphics>())
                     {
@@ -168,7 +168,7 @@ namespace My3D
         // Register callback for resizing in order to repaint.
         if (SDL_Window* window = graphics_->GetWindow())
         {
-            SDL_SetWindowData(window, "URHO3D_CONTEXT", GetContext());
+            SDL_SetWindowData(window, "MY3D_CONTEXT", GetContext());
             SDL_AddEventWatch(Win32_ResizingEventWatcher, window);
         }
 #endif

@@ -47,7 +47,7 @@ public:
     bool Rename(const String& srcFileName, const String& destFileName);
     /// Delete a file. Return true if successful.
     bool Delete(const String& fileName);
-    /// Register a path as allowed to access. If no paths are registered, all are allowed. Registering allowed paths is considered securing the Urho3D execution environment: running programs and opening files externally through the system will fail afterward.
+    /// Register a path as allowed to access. If no paths are registered, all are allowed.
     void RegisterPath(const String& pathName);
     /// Set a file's last modified time as seconds since 1.1.1970. Return true on success.
     bool SetLastModifiedTime(const String& fileName, unsigned newTime);

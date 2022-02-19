@@ -140,8 +140,6 @@ LICENSE
 
 */
 
-// Modified by Lasse Oorni and Yao Wei Tjong for Urho3D
-
 #ifndef INCLUDE_STB_IMAGE_WRITE_H
 #define INCLUDE_STB_IMAGE_WRITE_H
 
@@ -274,11 +272,10 @@ static void stbi__stdio_write(void *context, void *data, int size)
 static int stbi__start_write_file(stbi__write_context *s, const char *filename)
 {
    FILE *f;
-   // Urho3D: proper UTF8 handling for Windows, requires Urho3D WString class
 #ifndef _WIN32
    f = fopen(filename, "wb");
 #else
-   Urho3D::WString wstr(filename);
+   My3D::WString wstr(filename);
 #ifdef STBI_MSC_SECURE_CRT
    if (_wfopen_s(&f, wstr.CString(), L"wb")
       f = NULL;
@@ -1112,11 +1109,10 @@ STBIWDEF int stbi_write_png(char const *filename, int x, int y, int comp, const 
    int len;
    unsigned char *png = stbi_write_png_to_mem((unsigned char *) data, stride_bytes, x, y, comp, &len);
    if (png == NULL) return 0;
-   // Urho3D: proper UTF8 handling for Windows, requires Urho3D WString class
 #ifndef _WIN32
    f = fopen(filename, "wb");
 #else
-   Urho3D::WString wstr(filename);
+   My3D::WString wstr(filename);
 #ifdef STBI_MSC_SECURE_CRT
    if (_wfopen_s(&f, wstr.CString(), L"wb")
       f = NULL;

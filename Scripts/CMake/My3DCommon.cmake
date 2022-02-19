@@ -146,6 +146,11 @@ macro(_setup_target)
 
 endmacro()
 
+macro(_export_headers)
+    # add to third party headers
+    set(THIRD_PARTY_INCLUDE_DIRS ${THIRD_PARTY_INCLUDE_DIRS} ${INCLUDE_DIRS} PARENT_SCOPE)
+endmacro()
+
 macro(setup_executable)
     cmake_parse_arguments(ARG "" "" "" ${ARGN})
     check_source_file()

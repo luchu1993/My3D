@@ -43,7 +43,7 @@ int DoSystemCommand(const String& commandLine, bool redirectToLog, Context* cont
     // Get a platform-agnostic temporary file name for stderr redirection
     String stderrFilename;
     String adjustedCommandLine(commandLine);
-    char* prefPath = SDL_GetPrefPath("urho3d", "temp");
+    char* prefPath = SDL_GetPrefPath("my3d", "temp");
     if (prefPath)
     {
         stderrFilename = String(prefPath) + "command-stderr";
@@ -168,7 +168,7 @@ bool FileSystem::SetCurrentDir(const String& pathName)
 #else
     if (chdir(GetNativePath(pathName).CString()) != 0)
     {
-        URHO3D_LOGERROR("Failed to change directory to " + pathName);
+        MY3D_LOGERROR("Failed to change directory to " + pathName);
         return false;
     }
 #endif

@@ -78,7 +78,7 @@ namespace My3D
 
     if (handle < 0)
     {
-        URHO3D_LOGERROR("Failed to start watching path " + pathName);
+        MY3D_LOGERROR("Failed to start watching path " + pathName);
         return false;
     }
     else
@@ -102,7 +102,7 @@ namespace My3D
                 {
                     handle = inotify_add_watch(watchHandle_, subDirFullPath.CString(), (unsigned)flags);
                     if (handle < 0)
-                        URHO3D_LOGERROR("Failed to start watching subdirectory path " + subDirFullPath);
+                        MY3D_LOGERROR("Failed to start watching subdirectory path " + subDirFullPath);
                     else
                     {
                         // Store sub-directory to reconstruct later from inotify
@@ -113,7 +113,7 @@ namespace My3D
         }
         Run();
 
-        URHO3D_LOGDEBUG("Started watching path " + pathName);
+        MY3D_LOGDEBUG("Started watching path " + pathName);
         return true;
     }
 #endif
