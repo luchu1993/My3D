@@ -139,6 +139,36 @@ enum TextureUsage
     TEXTURE_DEPTHSTENCIL
 };
 
+/// Cube map faces.
+enum CubeMapFace
+{
+    FACE_POSITIVE_X = 0,
+    FACE_NEGATIVE_X,
+    FACE_POSITIVE_Y,
+    FACE_NEGATIVE_Y,
+    FACE_POSITIVE_Z,
+    FACE_NEGATIVE_Z,
+    MAX_CUBEMAP_FACES
+};
+
+/// Cubemap single image layout modes.
+enum CubeMapLayout
+{
+    CML_HORIZONTAL = 0,
+    CML_HORIZONTALNVIDIA,
+    CML_HORIZONTALCROSS,
+    CML_VERTICALCROSS,
+    CML_BLENDER
+};
+
+/// Update mode for render surface viewports.
+enum RenderSurfaceUpdateMode
+{
+    SURFACE_MANUALUPDATE = 0,
+    SURFACE_UPDATEVISIBLE,
+    SURFACE_UPDATEALWAYS
+};
+
 /// Shader types.
 enum ShaderType
 {

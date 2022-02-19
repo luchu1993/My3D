@@ -804,6 +804,26 @@ namespace My3D
         return nullptr;
     }
 
+    unsigned long long ResourceCache::GetMemoryBudget(StringHash type) const
+    {
+        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
+        return i != resourceGroups_.End() ? i->second_.memoryBudget_ : 0;
+    }
+
+    unsigned long long ResourceCache::GetMemoryUse(StringHash type) const
+    {
+        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
+        return i != resourceGroups_.End() ? i->second_.memoryUse_ : 0;
+    }
+
+    unsigned long long ResourceCache::GetTotalMemoryUse() const
+    {
+        unsigned long long total = 0;
+        for (HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Begin(); i != resourceGroups_.End(); ++i)
+            total += i->second_.memoryUse_;
+        return total;
+    }
+
     void RegisterResourceLibrary(Context* context)
     {
         XMLFile::RegisterObject(context);

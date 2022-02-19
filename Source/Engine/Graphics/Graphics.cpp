@@ -2,14 +2,14 @@
 // Created by luchu on 2022/1/18.
 //
 
-#include "SDL.h"
-#include "Graphics/Graphics.h"
-#include "Graphics/GraphicsEvents.h"
+#include <SDL.h>
 #include "Core/Context.h"
-#include "IO/Log.h"
 #include "Core/Mutex.h"
 #include "Core/StringUtils.h"
-
+#include "Graphics/Graphics.h"
+#include "Graphics/GraphicsEvents.h"
+#include "Graphics/ShaderPrecache.h"
+#include "IO/Log.h"
 
 
 namespace My3D

@@ -5,6 +5,7 @@
 #include "Graphics/Texture.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsImpl.h"
+#include "Graphics/Material.h"
 #include "Resource/XMLFile.h"
 #include "Resource/XMLElement.h"
 #include "Resource/ResourceCache.h"
@@ -256,6 +257,20 @@ unsigned Texture::CheckMaxLevels(int width, int height, int depth, unsigned requ
         return maxLevels;
     else
         return requestedLevels;
+}
+
+void Texture::CheckTextureBudget(StringHash type)
+{
+    auto* cache = GetSubsystem<ResourceCache>();
+    unsigned long long textureBudget = cache->GetMemoryBudget(type);
+    unsigned long long textureUse = cache->GetMemoryUse(type);
+    if (!textureBudget)
+        return;
+
+    // If textures are over the budget, they likely can not be freed directly as materials still refer to them.
+    // Therefore free unused materials first
+    if (textureUse > textureBudget)
+        cache->ReleaseResources(Material::GetTypeStatic());
 }
 
 }

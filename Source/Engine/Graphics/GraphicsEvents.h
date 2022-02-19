@@ -28,6 +28,11 @@ MY3D_EVENT(E_WINDOWPOS, WindowPos)
     MY3D_PARAM(P_Y, Y);                          // int
 }
 
+/// Request for queuing rendersurfaces either in manual or always-update mode.
+MY3D_EVENT(E_RENDERSURFACEUPDATE, RenderSurfaceUpdate)
+{
+}
+
 /// Frame rendering started.
 MY3D_EVENT(E_BEGINRENDERING, BeginRendering)
 {

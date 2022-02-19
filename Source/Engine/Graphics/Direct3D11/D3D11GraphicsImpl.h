@@ -76,6 +76,12 @@ namespace My3D
         bool blendStateDirty_;
         /// Depth state dirty flag.
         bool depthStateDirty_;
+        /// Rasterizer state dirty flag.
+        bool rasterizerStateDirty_;
+        /// Scissor rect dirty flag.
+        bool scissorRectDirty_;
+        /// Stencil ref dirty flag.
+        bool stencilRefDirty_;
         /// Hash of current blend state.
         unsigned blendStateHash_;
         /// Hash of current depth state.
