@@ -10,8 +10,8 @@
 
 namespace My3D
 {
-#define MY3D_SAFE_RELEASE(p) if (p) { ((IUnknown*)p)->Release(); p = nullptr; }
-#define MY3D_LOGD3DERROR(msg, hr) MY3D_LOGERRORF("%s (HRESULT %x)", msg, (unsigned) hr)
+#define MY3D_SAFE_RELEASE(p) if (p) { ((IUnknown*)(p))->Release(); (p) = nullptr; }
+#define MY3D_LOGD3DERROR(msg, hr) MY3D_LOGERRORF("%s (HRESULT %x)", msg, (unsigned) (hr))
 
     class MY3D_API GraphicsImpl
     {
