@@ -8,6 +8,7 @@
 #include "Core/Object.h"
 #include "Core/Mutex.h"
 #include "Container/ArrayPtr.h"
+#include "Resource/Image.h"
 
 
 struct SDL_Window;
@@ -18,11 +19,20 @@ namespace My3D
     class Texture;
     class GraphicsImpl;
     class RenderSurface;
+    class Shader;
+    class ShaderPrecache;
+    class ShaderProgram;
+    class ShaderVariation;
+    class Texture;
+    class Texture2D;
+    class Texture2DArray;
+    class TextureCube;
     class GPUObject;
     class Vector3;
     class Vector4;
     class VertexBuffer;
     class IndexBuffer;
+    class VertexDeclaration;
 
     /// CPU-side scratch buffer for vertex data updates
     struct ScratchBuffer
@@ -236,8 +246,18 @@ namespace My3D
         bool GetMaximized() const;
         /// Return display dpi information: (hdpi, vdpi, ddpi). On failure returns zero vector.
         Vector3 GetDisplayDPI(int monitor=0) const;
+        /// Return a shader variation by name and defines.
+        ShaderVariation* GetShader(ShaderType type, const String& name, const String& defines = String::EMPTY) const;
+        /// Return a shader variation by name and defines.
+        ShaderVariation* GetShader(ShaderType type, const char* name, const char* defines) const;
         /// Return current vertex buffer by index.
         VertexBuffer* GetVertexBuffer(unsigned index) const;
+        /// Return current index buffer.
+        IndexBuffer* GetIndexBuffer() const { return indexBuffer_; }
+        /// Return current vertex shader.
+        ShaderVariation* GetVertexShader() const { return vertexShader_; }
+        /// Return current pixel shader.
+        ShaderVariation* GetPixelShader() const { return pixelShader_; }
 
         /// Return texture unit index by name.
         TextureUnit GetTextureUnit(const String& name);
@@ -328,10 +348,14 @@ namespace My3D
         VertexBuffer* vertexBuffers_[MAX_VERTEX_STREAMS]{};
         /// Index buffer in use.
         IndexBuffer* indexBuffer_{};
-        /// Allowed screen orientations.
-        String orientations_;
-        /// Graphics API name
-        String apiName_;
+        /// Current vertex declaration hash.
+        unsigned long long vertexDeclarationHash_{};
+        /// Current primitive type.
+        unsigned primitiveType_{};
+        /// Vertex shader in use.
+        ShaderVariation* vertexShader_{};
+        /// Pixel shader in use.
+        ShaderVariation* pixelShader_{};
         /// Textures in use.
         Texture* textures_[MAX_TEXTURE_UNITS]{};
         /// Texture unit mappings.
@@ -352,6 +376,11 @@ namespace My3D
         PODVector<GPUObject*> gpuObjects_;
         /// Scratch buffers.
         Vector<ScratchBuffer> scratchBuffers_;
+
+        /// Allowed screen orientations.
+        String orientations_;
+        /// Graphics API name
+        String apiName_;
     };
 
     /// Register Graphics library objects

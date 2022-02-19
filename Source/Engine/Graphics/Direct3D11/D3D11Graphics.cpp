@@ -10,6 +10,7 @@
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsImpl.h"
 #include "Graphics/VertexBuffer.h"
+#include "Graphics/IndexBuffer.h"
 #include "Graphics/RenderSurface.h"
 #include "IO/Log.h"
 
@@ -204,6 +205,25 @@ namespace My3D
         }
 
         return true;
+    }
+
+    bool Graphics::SetVertexBuffers(const Vector<SharedPtr<VertexBuffer> >& buffers, unsigned instanceOffset)
+    {
+        return SetVertexBuffers(reinterpret_cast<const PODVector<VertexBuffer*>&>(buffers), instanceOffset);
+    }
+
+    void Graphics::SetIndexBuffer(IndexBuffer* buffer)
+    {
+        if (buffer != indexBuffer_)
+        {
+            if (buffer)
+                impl_->deviceContext_->IASetIndexBuffer((ID3D11Buffer*)buffer->GetGPUObject(),
+                                                        buffer->GetIndexSize() == sizeof(unsigned short) ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT, 0);
+            else
+                impl_->deviceContext_->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
+
+            indexBuffer_ = buffer;
+        }
     }
 
     void Graphics::Close()
