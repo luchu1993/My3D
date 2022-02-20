@@ -1741,7 +1741,7 @@ namespace My3D
                 break;
 
             default:
-                assert(false);  // Should never reach nere
+                assert(false);  // Should never reach here
                 break;
         }
 

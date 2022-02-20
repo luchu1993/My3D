@@ -194,9 +194,9 @@ namespace My3D
         bool parametersDirty_{true};
         /// Multisampling autoresolve flag.
         bool autoResolve_{};
-        /// Multisampling resolve needed -flag.
+        /// Multisampling resolve needed flag.
         bool resolveDirty_{};
-        /// Mipmap levels regeneration needed -flag.
+        /// Mipmap levels regeneration needed flag.
         bool levelsDirty_{};
         /// Backup texture.
         SharedPtr<Texture> backupTexture_;

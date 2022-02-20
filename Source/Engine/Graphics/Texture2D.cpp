@@ -104,7 +104,7 @@ namespace My3D
         }
 
         // Disable mipmaps if multisample & custom resolve
-        if (multiSample > 1 && autoResolve == false)
+        if (multiSample > 1 && !autoResolve)
             requestedLevels_ = 1;
 
         // Delete the old rendersurface if any

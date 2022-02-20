@@ -666,6 +666,38 @@ namespace My3D
         return fixedPath.Trimmed();
     }
 
+    void ResourceCache::StoreResourceDependency(Resource* resource, const String& dependency)
+    {
+        if (!resource)
+            return;
+
+        MutexLock lock(resourceMutex_);
+
+        StringHash nameHash(resource->GetName());
+        HashSet<StringHash>& dependents = dependentResources_[dependency];
+        dependents.Insert(nameHash);
+    }
+
+    void ResourceCache::ResetDependencies(Resource* resource)
+    {
+        if (!resource)
+            return;
+
+        MutexLock lock(resourceMutex_);
+
+        StringHash nameHash(resource->GetName());
+
+        for (HashMap<StringHash, HashSet<StringHash> >::Iterator i = dependentResources_.Begin(); i != dependentResources_.End();)
+        {
+            HashSet<StringHash>& dependents = i->second_;
+            dependents.Erase(nameHash);
+            if (dependents.Empty())
+                i = dependentResources_.Erase(i);
+            else
+                ++i;
+        }
+    }
+
     bool ResourceCache::BackgroundLoadResource(StringHash type, const String& name, bool sendEventOnFailure, Resource* caller)
     {
         // If empty name, fail immediately
