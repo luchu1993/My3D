@@ -1,2 +1,2 @@
 # My3D
-A Mini Game Engine support OpenGL and DirectX 11.
+A Mini Game Engine based on D3D11 and OpenGL.
