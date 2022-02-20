@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Graphics/GraphicsDefs.h"
+#include "Graphics/ShaderVariation.h"
 #include "Core/Object.h"
 #include "Core/Mutex.h"
 #include "Container/ArrayPtr.h"
