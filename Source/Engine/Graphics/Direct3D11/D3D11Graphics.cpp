@@ -14,9 +14,15 @@
 #include "Graphics/RenderSurface.h"
 #include "Graphics/Texture2D.h"
 #include "Graphics/TextureCube.h"
+#include "Graphics/Shader.h"
 #include "Graphics/ShaderPrecache.h"
+#include "Graphics/ShaderProgram.h"
+#include "Resource/ResourceCache.h"
 #include "IO/Log.h"
 
+#ifdef _MSC_VER
+#pragma warning(disable:4312)
+#endif
 
 // Prefer the high-performance GPU on switchable GPU systems
 extern "C"
@@ -458,6 +464,388 @@ namespace My3D
                 impl_->deviceContext_->IASetIndexBuffer(nullptr, DXGI_FORMAT_UNKNOWN, 0);
 
             indexBuffer_ = buffer;
+        }
+    }
+
+    void Graphics::SetShaders(ShaderVariation* vs, ShaderVariation* ps)
+    {
+        // Switch to the clip plane variations if necessary
+        if (useClipPlane_)
+        {
+            if (vs)
+                vs = vs->GetOwner()->GetVariation(VS, vs->GetDefinesClipPlane());
+            if (ps)
+                ps = ps->GetOwner()->GetVariation(PS, ps->GetDefinesClipPlane());
+        }
+
+        if (vs == vertexShader_ && ps == pixelShader_)
+            return;
+
+        if (vs != vertexShader_)
+        {
+            // Create the shader now if not yet created. If already attempted, do not retry
+            if (vs && !vs->GetGPUObject())
+            {
+                if (vs->GetCompilerOutput().Empty())
+                {
+                    bool success = vs->Create();
+                    if (!success)
+                    {
+                        MY3D_LOGERROR("Failed to compile vertex shader " + vs->GetFullName() + ":\n" + vs->GetCompilerOutput());
+                        vs = nullptr;
+                    }
+                }
+                else
+                    vs = nullptr;
+            }
+
+            impl_->deviceContext_->VSSetShader((ID3D11VertexShader*)(vs ? vs->GetGPUObject() : nullptr), nullptr, 0);
+            vertexShader_ = vs;
+            impl_->vertexDeclarationDirty_ = true;
+        }
+
+        if (ps != pixelShader_)
+        {
+            if (ps && !ps->GetGPUObject())
+            {
+                if (ps->GetCompilerOutput().Empty())
+                {
+                    bool success = ps->Create();
+                    if (!success)
+                    {
+                        MY3D_LOGERROR("Failed to compile pixel shader " + ps->GetFullName() + ":\n" + ps->GetCompilerOutput());
+                        ps = nullptr;
+                    }
+                }
+                else
+                    ps = nullptr;
+            }
+
+            impl_->deviceContext_->PSSetShader((ID3D11PixelShader*)(ps ? ps->GetGPUObject() : nullptr), nullptr, 0);
+            pixelShader_ = ps;
+        }
+
+        // Update current shader parameters & constant buffers
+        if (vertexShader_ && pixelShader_)
+        {
+            Pair<ShaderVariation*, ShaderVariation*> key = MakePair(vertexShader_, pixelShader_);
+            ShaderProgramMap::Iterator i = impl_->shaderPrograms_.Find(key);
+            if (i != impl_->shaderPrograms_.End())
+                impl_->shaderProgram_ = i->second_.Get();
+            else
+            {
+                ShaderProgram* newProgram = impl_->shaderPrograms_[key] = new ShaderProgram(this, vertexShader_, pixelShader_);
+                impl_->shaderProgram_ = newProgram;
+            }
+
+            bool vsBuffersChanged = false;
+            bool psBuffersChanged = false;
+
+            for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS; ++i)
+            {
+                ID3D11Buffer* vsBuffer = impl_->shaderProgram_->vsConstantBuffers_[i] ? (ID3D11Buffer*)impl_->shaderProgram_->vsConstantBuffers_[i]->
+                        GetGPUObject() : nullptr;
+                if (vsBuffer != impl_->constantBuffers_[VS][i])
+                {
+                    impl_->constantBuffers_[VS][i] = vsBuffer;
+                    shaderParameterSources_[i] = (const void*)M_MAX_UNSIGNED;
+                    vsBuffersChanged = true;
+                }
+
+                ID3D11Buffer* psBuffer = impl_->shaderProgram_->psConstantBuffers_[i] ? (ID3D11Buffer*)impl_->shaderProgram_->psConstantBuffers_[i]->
+                        GetGPUObject() : nullptr;
+                if (psBuffer != impl_->constantBuffers_[PS][i])
+                {
+                    impl_->constantBuffers_[PS][i] = psBuffer;
+                    shaderParameterSources_[i] = (const void*)M_MAX_UNSIGNED;
+                    psBuffersChanged = true;
+                }
+            }
+
+            if (vsBuffersChanged)
+                impl_->deviceContext_->VSSetConstantBuffers(0, MAX_SHADER_PARAMETER_GROUPS, &impl_->constantBuffers_[VS][0]);
+            if (psBuffersChanged)
+                impl_->deviceContext_->PSSetConstantBuffers(0, MAX_SHADER_PARAMETER_GROUPS, &impl_->constantBuffers_[PS][0]);
+        }
+        else
+            impl_->shaderProgram_ = nullptr;
+
+        // Store shader combination if shader dumping in progress
+        if (shaderPrecache_)
+            shaderPrecache_->StoreShaders(vertexShader_, pixelShader_);
+
+        // Update clip plane parameter if necessary
+        if (useClipPlane_)
+            SetShaderParameter(VSP_CLIPPLANE, clipPlane_);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const float* data, unsigned count)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, (unsigned)(count * sizeof(float)), data);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, float value)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(float), &value);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, int value)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(int), &value);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, bool value)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(bool), &value);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Color& color)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(Color), &color);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Vector2& vector)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(Vector2), &vector);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Matrix3& matrix)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetVector3ArrayParameter(i->second_.offset_, 3, &matrix);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Vector3& vector)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(Vector3), &vector);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Matrix4& matrix)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(Matrix4), &matrix);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Vector4& vector)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(Vector4), &vector);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Matrix3x4& matrix)
+    {
+        HashMap<StringHash, ShaderParameter>::Iterator i;
+        if (!impl_->shaderProgram_ || (i = impl_->shaderProgram_->parameters_.Find(param)) == impl_->shaderProgram_->parameters_.End())
+            return;
+
+        ConstantBuffer* buffer = i->second_.bufferPtr_;
+        if (!buffer->IsDirty())
+            impl_->dirtyConstantBuffers_.Push(buffer);
+        buffer->SetParameter(i->second_.offset_, sizeof(Matrix3x4), &matrix);
+    }
+
+    void Graphics::SetShaderParameter(StringHash param, const Variant& value)
+    {
+        switch (value.GetType())
+        {
+            case VAR_BOOL:
+                SetShaderParameter(param, value.GetBool());
+                break;
+
+            case VAR_INT:
+                SetShaderParameter(param, value.GetInt());
+                break;
+
+            case VAR_FLOAT:
+            case VAR_DOUBLE:
+                SetShaderParameter(param, value.GetFloat());
+                break;
+
+            case VAR_VECTOR2:
+                SetShaderParameter(param, value.GetVector2());
+                break;
+
+            case VAR_VECTOR3:
+                SetShaderParameter(param, value.GetVector3());
+                break;
+
+            case VAR_VECTOR4:
+                SetShaderParameter(param, value.GetVector4());
+                break;
+
+            case VAR_COLOR:
+                SetShaderParameter(param, value.GetColor());
+                break;
+
+            case VAR_MATRIX3:
+                SetShaderParameter(param, value.GetMatrix3());
+                break;
+
+            case VAR_MATRIX3X4:
+                SetShaderParameter(param, value.GetMatrix3x4());
+                break;
+
+            case VAR_MATRIX4:
+                SetShaderParameter(param, value.GetMatrix4());
+                break;
+
+            case VAR_BUFFER:
+            {
+                const PODVector<unsigned char>& buffer = value.GetBuffer();
+                if (buffer.Size() >= sizeof(float))
+                    SetShaderParameter(param, reinterpret_cast<const float*>(&buffer[0]), buffer.Size() / sizeof(float));
+            }
+                break;
+
+            default:
+                // Unsupported parameter type, do nothing
+                break;
+        }
+    }
+
+    bool Graphics::NeedParameterUpdate(ShaderParameterGroup group, const void* source)
+    {
+        if ((unsigned)(size_t)shaderParameterSources_[group] == M_MAX_UNSIGNED || shaderParameterSources_[group] != source)
+        {
+            shaderParameterSources_[group] = source;
+            return true;
+        }
+        else
+            return false;
+    }
+
+    bool Graphics::HasShaderParameter(StringHash param)
+    {
+        return impl_->shaderProgram_ && impl_->shaderProgram_->parameters_.Find(param) != impl_->shaderProgram_->parameters_.End();
+    }
+
+    bool Graphics::HasTextureUnit(TextureUnit unit)
+    {
+        return (vertexShader_ && vertexShader_->HasTextureUnit(unit)) || (pixelShader_ && pixelShader_->HasTextureUnit(unit));
+    }
+
+    void Graphics::ClearParameterSource(ShaderParameterGroup group)
+    {
+        shaderParameterSources_[group] = (const void*)M_MAX_UNSIGNED;
+    }
+
+    void Graphics::ClearParameterSources()
+    {
+        for (unsigned i = 0; i < MAX_SHADER_PARAMETER_GROUPS; ++i)
+            shaderParameterSources_[i] = (const void*)M_MAX_UNSIGNED;
+    }
+
+    void Graphics::ClearTransformSources()
+    {
+        shaderParameterSources_[SP_CAMERA] = (const void*)M_MAX_UNSIGNED;
+        shaderParameterSources_[SP_OBJECT] = (const void*)M_MAX_UNSIGNED;
+    }
+
+    void SetTextureForUpdate(Texture* texture)
+    {
+        // No-op on Direct3D11
+    }
+
+    void Graphics::SetDefaultTextureFilterMode(TextureFilterMode mode)
+    {
+        if (mode != defaultTextureFilterMode_)
+        {
+            defaultTextureFilterMode_ = mode;
+            SetTextureParametersDirty();
+        }
+    }
+
+    void Graphics::SetDefaultTextureAnisotropy(unsigned level)
+    {
+        level = Max(level, 1U);
+
+        if (level != defaultTextureAnisotropy_) {
+            defaultTextureAnisotropy_ = level;
+            SetTextureParametersDirty();
+        }
+    }
+
+    void Graphics::Restore()
+    {
+        // No-op on Direct3D11
+    }
+
+    void Graphics::SetTextureParametersDirty()
+    {
+        MutexLock lock(gpuObjectMutex_);
+
+        for (PODVector<GPUObject*>::Iterator i = gpuObjects_.Begin(); i != gpuObjects_.End(); ++i)
+        {
+            Texture* texture = dynamic_cast<Texture*>(*i);
+            if (texture)
+                texture->SetParametersDirty();
         }
     }
 
@@ -1250,9 +1638,37 @@ namespace My3D
         }
     }
 
+    ShaderVariation* Graphics::GetShader(ShaderType type, const String& name, const String& defines) const
+    {
+        return GetShader(type, name.CString(), defines.CString());
+    }
+
+    ShaderVariation* Graphics::GetShader(ShaderType type, const char* name, const char* defines) const
+    {
+        if (lastShaderName_ != name || !lastShader_)
+        {
+            ResourceCache* cache = GetSubsystem<ResourceCache>();
+
+            String fullShaderName = shaderPath_ + name + shaderExtension_;
+            // Try to reduce repeated error log prints because of missing shaders
+            if (lastShaderName_ == name && !cache->Exists(fullShaderName))
+                return nullptr;
+
+            lastShader_ = cache->GetResource<Shader>(fullShaderName);
+            lastShaderName_ = name;
+        }
+
+        return lastShader_ ? lastShader_->GetVariation(type, defines) : nullptr;
+    }
+
     VertexBuffer* Graphics::GetVertexBuffer(unsigned index) const
     {
         return index < MAX_VERTEX_STREAMS ? vertexBuffers_[index] : nullptr;
+    }
+
+    ShaderProgram* Graphics::GetShaderProgram() const
+    {
+        return impl_->shaderProgram_;
     }
 
     TextureUnit Graphics::GetTextureUnit(const String& name)
@@ -1347,6 +1763,41 @@ namespace My3D
         eventData[P_X] = position_.x_;
         eventData[P_Y] = position_.y_;
         SendEvent(E_WINDOWPOS, eventData);
+    }
+
+    void Graphics::CleanupShaderPrograms(ShaderVariation* variation)
+    {
+        for (ShaderProgramMap::Iterator i = impl_->shaderPrograms_.Begin(); i != impl_->shaderPrograms_.End();)
+        {
+            if (i->first_.first_ == variation || i->first_.second_ == variation)
+                i = impl_->shaderPrograms_.Erase(i);
+            else
+                ++i;
+        }
+
+        if (vertexShader_ == variation || pixelShader_ == variation)
+            impl_->shaderProgram_ = nullptr;
+    }
+
+    void Graphics::CleanupRenderSurface(RenderSurface* surface)
+    {
+        // No-op on Direct3D11
+    }
+
+    ConstantBuffer* Graphics::GetOrCreateConstantBuffer(ShaderType type, unsigned index, unsigned size)
+    {
+        // Ensure that different shader types and index slots get unique buffers, even if the size is same
+        unsigned key = type | (index << 1) | (size << 4);
+        ConstantBufferMap::Iterator i = impl_->allConstantBuffers_.Find(key);
+        if (i != impl_->allConstantBuffers_.End())
+            return i->second_.Get();
+        else
+        {
+            SharedPtr<ConstantBuffer> newConstantBuffer(new ConstantBuffer(context_));
+            newConstantBuffer->SetSize(size);
+            impl_->allConstantBuffers_[key] = newConstantBuffer;
+            return newConstantBuffer.Get();
+        }
     }
 
     void Graphics::SetFlushGPU(bool enable)

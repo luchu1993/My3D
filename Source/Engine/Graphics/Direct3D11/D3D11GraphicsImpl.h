@@ -4,14 +4,22 @@
 
 #pragma once
 
-#include "Math/Color.h"
 #include <d3d11.h>
 #include <dxgi.h>
+#include "Graphics/ConstantBuffer.h"
+#include "Graphics/GraphicsDefs.h"
+#include "Graphics/ShaderProgram.h"
+#include "Graphics/VertexDeclaration.h"
+
 
 namespace My3D
 {
-#define MY3D_SAFE_RELEASE(p) if (p) { ((IUnknown*)(p))->Release(); (p) = nullptr; }
-#define MY3D_LOGD3DERROR(msg, hr) MY3D_LOGERRORF("%s (HRESULT %x)", msg, (unsigned) (hr))
+    #define MY3D_SAFE_RELEASE(p) if (p) { ((IUnknown*)(p))->Release(); (p) = nullptr; }
+    #define MY3D_LOGD3DERROR(msg, hr) MY3D_LOGERRORF("%s (HRESULT %x)", msg, (unsigned) (hr))
+
+    using ShaderProgramMap = HashMap<Pair<ShaderVariation*, ShaderVariation*>, SharedPtr<ShaderProgram> >;
+    using VertexDeclarationMap = HashMap<unsigned long long, SharedPtr<VertexDeclaration> >;
+    using ConstantBufferMap = HashMap<unsigned, SharedPtr<ConstantBuffer> >;
 
     class MY3D_API GraphicsImpl
     {
@@ -32,37 +40,39 @@ namespace My3D
         unsigned GetMultiSampleQuality(DXGI_FORMAT format, unsigned sampleCount) const;
 
     private:
-        /// Graphics device
+        /// Graphics device.
         ID3D11Device* device_;
-        /// Immediate device context
+        /// Immediate device context.
         ID3D11DeviceContext* deviceContext_;
-        /// Swap chain
+        /// Swap chain.
         IDXGISwapChain* swapChain_;
         /// Default (backbuffer) rendertarget view.
         ID3D11RenderTargetView* defaultRenderTargetView_;
-        /// Default depth-stencil texture
+        /// Default depth-stencil texture.
         ID3D11Texture2D* defaultDepthTexture_;
-        /// Default depth-stencil view
+        /// Default depth-stencil view.
         ID3D11DepthStencilView* defaultDepthStencilView_;
-        /// Current color render target views
+        /// Current color rendertarget views.
         ID3D11RenderTargetView* renderTargetViews_[MAX_RENDERTARGETS];
-        /// Current depth-stencil view
+        /// Current depth-stencil view.
         ID3D11DepthStencilView* depthStencilView_;
-        /// Created blend state objects
+        /// Created blend state objects.
         HashMap<unsigned, ID3D11BlendState*> blendStates_;
-        /// Created depth state objects
+        /// Created depth state objects.
         HashMap<unsigned, ID3D11DepthStencilState*> depthStates_;
+        /// Created rasterizer state objects.
+        HashMap<unsigned, ID3D11RasterizerState*> rasterizerStates_;
         /// Intermediate texture for multisampled screenshots and less than whole viewport multisampled resolve, created on demand.
         ID3D11Texture2D* resolveTexture_;
-        /// Bound shader resource views
+        /// Bound shader resource views.
         ID3D11ShaderResourceView* shaderResourceViews_[MAX_TEXTURE_UNITS];
-        /// Bound sampler state objects
+        /// Bound sampler state objects.
         ID3D11SamplerState* samplers_[MAX_TEXTURE_UNITS];
-        /// Bound vertex buffers
+        /// Bound vertex buffers.
         ID3D11Buffer* vertexBuffers_[MAX_VERTEX_STREAMS];
-        /// Bound constant buffers
-        ID3D11Buffer* constantBuffers[2][MAX_SHADER_PARAMETER_GROUPS];
-        /// Vertex sizes per buffer
+        /// Bound constant buffers.
+        ID3D11Buffer* constantBuffers_[2][MAX_SHADER_PARAMETER_GROUPS];
+        /// Vertex sizes per buffer.
         unsigned vertexSizes_[MAX_VERTEX_STREAMS];
         /// Vertex stream offsets per buffer.
         unsigned vertexOffsets_[MAX_VERTEX_STREAMS];
@@ -96,5 +106,15 @@ namespace My3D
         unsigned firstDirtyVB_;
         /// Last dirtied vertex buffer.
         unsigned lastDirtyVB_;
+        /// Vertex declarations.
+        VertexDeclarationMap vertexDeclarations_;
+        /// Constant buffer search map.
+        ConstantBufferMap allConstantBuffers_;
+        /// Currently dirty constant buffers.
+        PODVector<ConstantBuffer*> dirtyConstantBuffers_;
+        /// Shader programs.
+        ShaderProgramMap shaderPrograms_;
+        /// Shader program in use.
+        ShaderProgram* shaderProgram_;
     };
 }

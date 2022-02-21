@@ -308,6 +308,59 @@ namespace My3D
         }
     }
 
+    bool ResourceCache::Exists(const String& name) const
+    {
+        MutexLock lock(resourceMutex_);
+
+        String sanitatedName = SanitateResourceName(name);
+        if (!isRouting_)
+        {
+            isRouting_ = true;
+            for (unsigned i = 0; i < resourceRouters_.Size(); ++i)
+                resourceRouters_[i]->Route(sanitatedName, RESOURCE_CHECKEXISTS);
+            isRouting_ = false;
+        }
+
+        if (sanitatedName.Empty())
+            return false;
+
+        for (unsigned i = 0; i < packages_.Size(); ++i)
+        {
+            if (packages_[i]->Exists(sanitatedName))
+                return true;
+        }
+
+        auto* fileSystem = GetSubsystem<FileSystem>();
+        for (unsigned i = 0; i < resourceDirs_.Size(); ++i)
+        {
+            if (fileSystem->FileExists(resourceDirs_[i] + sanitatedName))
+                return true;
+        }
+
+        // Fallback using absolute path
+        return fileSystem->FileExists(sanitatedName);
+    }
+
+    unsigned long long ResourceCache::GetMemoryBudget(StringHash type) const
+    {
+        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
+        return i != resourceGroups_.End() ? i->second_.memoryBudget_ : 0;
+    }
+
+    unsigned long long ResourceCache::GetMemoryUse(StringHash type) const
+    {
+        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
+        return i != resourceGroups_.End() ? i->second_.memoryUse_ : 0;
+    }
+
+    unsigned long long ResourceCache::GetTotalMemoryUse() const
+    {
+        unsigned long long total = 0;
+        for (HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Begin(); i != resourceGroups_.End(); ++i)
+            total += i->second_.memoryUse_;
+        return total;
+    }
+
     SharedPtr<Resource> ResourceCache::GetTempResource(StringHash type, const String& name, bool sendEventOnFailure)
     {
         String sanitatedName = SanitateResourceName(name);
@@ -836,24 +889,119 @@ namespace My3D
         return nullptr;
     }
 
-    unsigned long long ResourceCache::GetMemoryBudget(StringHash type) const
+    String ResourceCache::GetResourceFileName(const String& name) const
     {
-        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
-        return i != resourceGroups_.End() ? i->second_.memoryBudget_ : 0;
+        auto* fileSystem = GetSubsystem<FileSystem>();
+        for (unsigned i = 0; i < resourceDirs_.Size(); ++i)
+        {
+            if (fileSystem->FileExists(resourceDirs_[i] + name))
+                return resourceDirs_[i] + name;
+        }
+
+        if (IsAbsolutePath(name) && fileSystem->FileExists(name))
+            return name;
+        else
+            return String();
     }
 
-    unsigned long long ResourceCache::GetMemoryUse(StringHash type) const
+    ResourceRouter* ResourceCache::GetResourceRouter(unsigned index) const
     {
-        HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Find(type);
-        return i != resourceGroups_.End() ? i->second_.memoryUse_ : 0;
+        return index < resourceRouters_.Size() ? resourceRouters_[index] : nullptr;
     }
 
-    unsigned long long ResourceCache::GetTotalMemoryUse() const
+    String ResourceCache::GetPreferredResourceDir(const String& path) const
     {
-        unsigned long long total = 0;
-        for (HashMap<StringHash, ResourceGroup>::ConstIterator i = resourceGroups_.Begin(); i != resourceGroups_.End(); ++i)
-            total += i->second_.memoryUse_;
-        return total;
+        String fixedPath = AddTrailingSlash(path);
+
+        bool pathHasKnownDirs = false;
+        bool parentHasKnownDirs = false;
+
+        auto* fileSystem = GetSubsystem<FileSystem>();
+
+        for (unsigned i = 0; checkDirs[i] != nullptr; ++i)
+        {
+            if (fileSystem->DirExists(fixedPath + checkDirs[i]))
+            {
+                pathHasKnownDirs = true;
+                break;
+            }
+        }
+        if (!pathHasKnownDirs)
+        {
+            String parentPath = GetParentPath(fixedPath);
+            for (unsigned i = 0; checkDirs[i] != nullptr; ++i)
+            {
+                if (fileSystem->DirExists(parentPath + checkDirs[i]))
+                {
+                    parentHasKnownDirs = true;
+                    break;
+                }
+            }
+            // If path does not have known subdirectories, but the parent path has, use the parent instead
+            if (parentHasKnownDirs)
+                fixedPath = parentPath;
+        }
+
+        return fixedPath;
+    }
+
+    String ResourceCache::PrintMemoryUsage() const
+    {
+        String output = "Resource Type                 Cnt       Avg       Max    Budget     Total\n\n";
+        char outputLine[256];
+
+        unsigned totalResourceCt = 0;
+        unsigned long long totalLargest = 0;
+        unsigned long long totalAverage = 0;
+        unsigned long long totalUse = GetTotalMemoryUse();
+
+        for (HashMap<StringHash, ResourceGroup>::ConstIterator cit = resourceGroups_.Begin(); cit != resourceGroups_.End(); ++cit)
+        {
+            const unsigned resourceCt = cit->second_.resources_.Size();
+            unsigned long long average = 0;
+            if (resourceCt > 0)
+                average = cit->second_.memoryUse_ / resourceCt;
+            else
+                average = 0;
+            unsigned long long largest = 0;
+            for (HashMap<StringHash, SharedPtr<Resource> >::ConstIterator resIt = cit->second_.resources_.Begin(); resIt != cit->second_.resources_.End(); ++resIt)
+            {
+                if (resIt->second_->GetMemoryUse() > largest)
+                    largest = resIt->second_->GetMemoryUse();
+                if (largest > totalLargest)
+                    totalLargest = largest;
+            }
+
+            totalResourceCt += resourceCt;
+
+            const String countString(cit->second_.resources_.Size());
+            const String memUseString = GetFileSizeString(average);
+            const String memMaxString = GetFileSizeString(largest);
+            const String memBudgetString = GetFileSizeString(cit->second_.memoryBudget_);
+            const String memTotalString = GetFileSizeString(cit->second_.memoryUse_);
+            const String resTypeName = context_->GetTypeName(cit->first_);
+
+            memset(outputLine, ' ', 256);
+            outputLine[255] = 0;
+            sprintf(outputLine, "%-28s %4s %9s %9s %9s %9s\n", resTypeName.CString(), countString.CString(), memUseString.CString(), memMaxString.CString(), memBudgetString.CString(), memTotalString.CString());
+
+            output += ((const char*)outputLine);
+        }
+
+        if (totalResourceCt > 0)
+            totalAverage = totalUse / totalResourceCt;
+
+        const String countString(totalResourceCt);
+        const String memUseString = GetFileSizeString(totalAverage);
+        const String memMaxString = GetFileSizeString(totalLargest);
+        const String memTotalString = GetFileSizeString(totalUse);
+
+        memset(outputLine, ' ', 256);
+        outputLine[255] = 0;
+        sprintf(outputLine, "%-28s %4s %9s %9s %9s %9s\n", "All", countString.CString(), memUseString.CString(), memMaxString.CString(), "-", memTotalString.CString());
+        output += ((const char*)outputLine);
+
+        return output;
     }
 
     void RegisterResourceLibrary(Context* context)

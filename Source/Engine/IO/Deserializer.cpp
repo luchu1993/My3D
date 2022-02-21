@@ -383,4 +383,38 @@ namespace My3D
                 return Variant::EMPTY;
         }
     }
+
+    unsigned Deserializer::ReadNetID()
+    {
+        unsigned ret = 0;
+        Read(&ret, 3);
+        return ret;
+    }
+
+    String Deserializer::ReadLine()
+    {
+        String ret;
+
+        while (!IsEof())
+        {
+            char c = ReadByte();
+            if (c == 10)
+                break;
+            if (c == 13)
+            {
+                // Peek next char to see if it's 10, and skip it too
+                if (!IsEof())
+                {
+                    char next = ReadByte();
+                    if (next != 10)
+                        Seek(position_ - 1);
+                }
+                break;
+            }
+
+            ret += c;
+        }
+
+        return ret;
+    }
 }
