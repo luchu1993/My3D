@@ -275,12 +275,9 @@ namespace My3D
         /// Set scissor test.
         void SetScissorTest(bool enable, const IntRect& rect);
         /// Set stencil test.
-        void SetStencilTest
-                (bool enable, CompareMode mode = CMP_ALWAYS, StencilOp pass = OP_KEEP, StencilOp fail = OP_KEEP, StencilOp zFail = OP_KEEP,
-                 unsigned stencilRef = 0, unsigned compareMask = M_MAX_UNSIGNED, unsigned writeMask = M_MAX_UNSIGNED);
+        void SetStencilTest(bool enable, CompareMode mode = CMP_ALWAYS, StencilOp pass = OP_KEEP, StencilOp fail = OP_KEEP, StencilOp zFail = OP_KEEP, unsigned stencilRef = 0, unsigned compareMask = M_MAX_UNSIGNED, unsigned writeMask = M_MAX_UNSIGNED);
         /// Set a custom clipping plane. The plane is specified in world space, but is dependent on the view and projection matrices.
-        void SetClipPlane(bool enable, const Plane& clipPlane = Plane::UP, const Matrix3x4& view = Matrix3x4::IDENTITY,
-                          const Matrix4& projection = Matrix4::IDENTITY);
+        void SetClipPlane(bool enable, const Plane& clipPlane = Plane::UP, const Matrix3x4& view = Matrix3x4::IDENTITY, const Matrix4& projection = Matrix4::IDENTITY);
         /// Begin dumping shader variation names to an XML file for precaching.
         void BeginDumpShaders(const String& fileName);
         /// End dumping shader variations names.

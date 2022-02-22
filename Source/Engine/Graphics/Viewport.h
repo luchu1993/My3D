@@ -40,8 +40,6 @@ namespace My3D
         WeakPtr<Camera> cullCamera_;
         /// Viewport rectangle
         IntRect rect_;
-        /// Rendering path
-        SharedPtr<RenderPath> renderPath_;
         /// Internal rendering structure.
         SharedPtr<View> view_;
         /// Debug draw flag.

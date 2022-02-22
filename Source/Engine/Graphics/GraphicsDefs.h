@@ -286,6 +286,17 @@ namespace My3D
         unsigned offset_;
     };
 
+    /// Shadow type.
+    enum ShadowQuality
+    {
+        SHADOWQUALITY_SIMPLE_16BIT = 0,
+        SHADOWQUALITY_SIMPLE_24BIT,
+        SHADOWQUALITY_PCF_16BIT,
+        SHADOWQUALITY_PCF_24BIT,
+        SHADOWQUALITY_VSM,
+        SHADOWQUALITY_BLUR_VSM
+    };
+
     // Inbuilt shader parameters.
     extern MY3D_API const StringHash VSP_AMBIENTSTARTCOLOR;
     extern MY3D_API const StringHash VSP_AMBIENTENDCOLOR;

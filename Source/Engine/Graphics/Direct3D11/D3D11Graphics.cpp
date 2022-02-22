@@ -11,14 +11,18 @@
 #include "Graphics/GraphicsImpl.h"
 #include "Graphics/VertexBuffer.h"
 #include "Graphics/IndexBuffer.h"
+#include "Graphics/ConstantBuffer.h"
+#include "Graphics/Geometry.h"
 #include "Graphics/RenderSurface.h"
 #include "Graphics/Texture2D.h"
 #include "Graphics/TextureCube.h"
 #include "Graphics/Shader.h"
 #include "Graphics/ShaderPrecache.h"
 #include "Graphics/ShaderProgram.h"
+#include "Graphics/Renderer.h"
 #include "Resource/ResourceCache.h"
 #include "IO/Log.h"
+
 
 #ifdef _MSC_VER
 #pragma warning(disable:4312)
@@ -173,6 +177,8 @@ namespace My3D
         : Base(context)
         , impl_(new GraphicsImpl())
         , position_(SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED)
+        , shaderPath_("Shaders/HLSL/")
+        , shaderExtension_(".hlsl")
         , orientations_("LandscapeLeft LandscapeRight")
         , apiName_("D3D11")
     {
@@ -195,6 +201,28 @@ namespace My3D
 
             gpuObjects_.Clear();
         }
+
+        impl_->vertexDeclarations_.Clear();
+        impl_->allConstantBuffers_.Clear();
+
+        for (HashMap<unsigned, ID3D11BlendState*>::Iterator i = impl_->blendStates_.Begin(); i != impl_->blendStates_.End(); ++i)
+        {
+            MY3D_SAFE_RELEASE(i->second_);
+        }
+        impl_->blendStates_.Clear();
+
+        for (HashMap<unsigned, ID3D11DepthStencilState*>::Iterator i = impl_->depthStates_.Begin(); i != impl_->depthStates_.End(); ++i)
+        {
+            MY3D_SAFE_RELEASE(i->second_);
+        }
+        impl_->depthStates_.Clear();
+
+        for (HashMap<unsigned, ID3D11RasterizerState*>::Iterator i = impl_->rasterizerStates_.Begin();
+             i != impl_->rasterizerStates_.End(); ++i)
+        {
+            MY3D_SAFE_RELEASE(i->second_);
+        }
+        impl_->rasterizerStates_.Clear();
 
         MY3D_SAFE_RELEASE(impl_->defaultRenderTargetView_);
         MY3D_SAFE_RELEASE(impl_->defaultDepthStencilView_);
@@ -223,6 +251,7 @@ namespace My3D
         ScreenModeParams newParams = params;
         AdjustScreenMode(width, height, newParams, maximize);
 
+        // If nothing changes, do not reset the device
         if (width == width_ && height == height_ && newParams == screenParams_)
             return true;
 
@@ -257,6 +286,249 @@ namespace My3D
         return true;
     }
 
+    void Graphics::SetSRGB(bool enable)
+    {
+        bool newEnable = enable && sRGBWriteSupport_;
+        if (newEnable != sRGB_)
+        {
+            sRGB_ = newEnable;
+            if (impl_->swapChain_)
+            {
+                // Recreate swap chain for the new backbuffer format
+                CreateDevice(width_, height_);
+                UpdateSwapChain(width_, height_);
+            }
+        }
+    }
+
+    void Graphics::SetDither(bool enable)
+    {
+        // No effect on Direct3D11
+    }
+
+    void Graphics::SetForceGL2(bool enable)
+    {
+        // No effect on Direct3D11
+    }
+
+    void Graphics::SetFlushGPU(bool enable)
+    {
+        flushGPU_ = enable;
+
+        if (impl_->device_)
+        {
+            IDXGIDevice1* dxgiDevice;
+            impl_->device_->QueryInterface(IID_IDXGIDevice1, (void**)&dxgiDevice);
+            if (dxgiDevice)
+            {
+                dxgiDevice->SetMaximumFrameLatency(enable ? 1 : 3);
+                dxgiDevice->Release();
+            }
+        }
+    }
+
+    void Graphics::Close()
+    {
+        if (window_)
+        {
+            SDL_ShowCursor(SDL_TRUE);
+            SDL_DestroyWindow(window_);
+            window_ = nullptr;
+        }
+    }
+
+    bool Graphics::TakeScreenShot(Image& destImage)
+    {
+        if (!impl_->device_)
+            return false;
+
+        D3D11_TEXTURE2D_DESC textureDesc;
+        memset(&textureDesc, 0, sizeof textureDesc);
+        textureDesc.Width = (UINT)width_;
+        textureDesc.Height = (UINT)height_;
+        textureDesc.MipLevels = 1;
+        textureDesc.ArraySize = 1;
+        textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        textureDesc.SampleDesc.Count = 1;
+        textureDesc.SampleDesc.Quality = 0;
+        textureDesc.Usage = D3D11_USAGE_STAGING;
+        textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+        ID3D11Texture2D* stagingTexture = nullptr;
+        HRESULT hr = impl_->device_->CreateTexture2D(&textureDesc, nullptr, &stagingTexture);
+        if (FAILED(hr))
+        {
+            MY3D_SAFE_RELEASE(stagingTexture);
+            MY3D_LOGD3DERROR("Could not create staging texture for screenshot", hr);
+            return false;
+        }
+
+        ID3D11Resource* source = nullptr;
+        impl_->defaultRenderTargetView_->GetResource(&source);
+
+        if (screenParams_.multiSample_ > 1)
+        {
+            // If backbuffer is multisampled, need another DEFAULT usage texture to resolve the data to first
+            CreateResolveTexture();
+
+            if (!impl_->resolveTexture_)
+            {
+                stagingTexture->Release();
+                source->Release();
+                return false;
+            }
+
+            impl_->deviceContext_->ResolveSubresource(impl_->resolveTexture_, 0, source, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+            impl_->deviceContext_->CopyResource(stagingTexture, impl_->resolveTexture_);
+        }
+        else
+            impl_->deviceContext_->CopyResource(stagingTexture, source);
+
+        source->Release();
+
+        D3D11_MAPPED_SUBRESOURCE mappedData;
+        mappedData.pData = nullptr;
+        hr = impl_->deviceContext_->Map(stagingTexture, 0, D3D11_MAP_READ, 0, &mappedData);
+        if (FAILED(hr) || !mappedData.pData)
+        {
+            MY3D_LOGD3DERROR("Could not map staging texture for screenshot", hr);
+            stagingTexture->Release();
+            return false;
+        }
+
+        destImage.SetSize(width_, height_, 3);
+        unsigned char* destData = destImage.GetData();
+        for (int y = 0; y < height_; ++y)
+        {
+            unsigned char* src = (unsigned char*)mappedData.pData + y * mappedData.RowPitch;
+            for (int x = 0; x < width_; ++x)
+            {
+                *destData++ = *src++;
+                *destData++ = *src++;
+                *destData++ = *src++;
+                ++src;
+            }
+        }
+
+        impl_->deviceContext_->Unmap(stagingTexture, 0);
+        stagingTexture->Release();
+        return true;
+    }
+
+    bool Graphics::BeginFrame()
+    {
+        if (!IsInitialized())
+            return false;
+
+        // If using an external window, check it for size changes, and reset screen mode if necessary
+        if (externalWindow_)
+        {
+            int width, height;
+
+            SDL_GetWindowSize(window_, &width, &height);
+            if (width != width_ || height != height_)
+                SetMode(width, height);
+        }
+        else
+        {
+            // To prevent a loop of endless device loss and flicker, do not attempt to render when in fullscreen
+            // and the window is minimized
+            if (screenParams_.fullscreen_ && (SDL_GetWindowFlags(window_) & SDL_WINDOW_MINIMIZED))
+                return false;
+        }
+
+        // Set default rendertarget and depth buffer
+        ResetRenderTargets();
+
+        // Cleanup textures from previous frame
+        for (unsigned i = 0; i < MAX_TEXTURE_UNITS; ++i)
+            SetTexture(i, nullptr);
+
+        numPrimitives_ = 0;
+        numBatches_ = 0;
+
+        SendEvent(E_BEGINRENDERING);
+        return true;
+    }
+
+    void Graphics::EndFrame()
+    {
+        if (!IsInitialized())
+            return;
+
+        {
+            SendEvent(E_ENDRENDERING);
+            impl_->swapChain_->Present(screenParams_.vsync_ ? 1 : 0, 0);
+        }
+
+        // Clean up too large scratch buffers
+        // CleanupScratchBuffers();
+    }
+
+    void Graphics::Clear(ClearTargetFlags flags, const Color& color, float depth, unsigned stencil)
+    {
+        IntVector2 rtSize = GetRenderTargetDimensions();
+
+        bool oldColorWrite = colorWrite_;
+        bool oldDepthWrite = depthWrite_;
+
+        // D3D11 clear always clears the whole target regardless of viewport or scissor test settings
+        // Emulate partial clear by rendering a quad
+        if (!viewport_.left_ && !viewport_.top_ && viewport_.right_ == rtSize.x_ && viewport_.bottom_ == rtSize.y_)
+        {
+            // Make sure we use the read-write version of the depth stencil
+            SetDepthWrite(true);
+            PrepareDraw();
+
+            if ((flags & CLEAR_COLOR) && impl_->renderTargetViews_[0])
+                impl_->deviceContext_->ClearRenderTargetView(impl_->renderTargetViews_[0], color.Data());
+
+            if ((flags & (CLEAR_DEPTH | CLEAR_STENCIL)) && impl_->depthStencilView_)
+            {
+                unsigned depthClearFlags = 0;
+                if (flags & CLEAR_DEPTH)
+                    depthClearFlags |= D3D11_CLEAR_DEPTH;
+                if (flags & CLEAR_STENCIL)
+                    depthClearFlags |= D3D11_CLEAR_STENCIL;
+                impl_->deviceContext_->ClearDepthStencilView(impl_->depthStencilView_, depthClearFlags, depth, (UINT8)stencil);
+            }
+        }
+        else
+        {
+            Renderer* renderer = GetSubsystem<Renderer>();
+            if (!renderer)
+                return;
+
+            Geometry* geometry = renderer->GetQuadGeometry();
+
+            Matrix3x4 model = Matrix3x4::IDENTITY;
+            Matrix4 projection = Matrix4::IDENTITY;
+            model.m23_ = Clamp(depth, 0.0f, 1.0f);
+
+            SetBlendMode(BLEND_REPLACE);
+            SetColorWrite(flags & CLEAR_COLOR);
+            SetCullMode(CULL_NONE);
+            SetDepthTest(CMP_ALWAYS);
+            SetDepthWrite(flags & CLEAR_DEPTH);
+            SetFillMode(FILL_SOLID);
+            SetScissorTest(false);
+            // SetStencilTest(flags & CLEAR_STENCIL, CMP_ALWAYS, OP_REF, OP_KEEP, OP_KEEP, stencil);
+            SetShaders(GetShader(VS, "ClearFramebuffer"), GetShader(PS, "ClearFramebuffer"));
+            SetShaderParameter(VSP_MODEL, model);
+            SetShaderParameter(VSP_VIEWPROJ, projection);
+            SetShaderParameter(PSP_MATDIFFCOLOR, color);
+
+            // geometry->Draw(this);
+
+            // SetStencilTest(false);
+            ClearParameterSources();
+        }
+
+        // Restore color & depth write state now
+        SetColorWrite(oldColorWrite);
+        SetDepthWrite(oldDepthWrite);
+    }
+
     IntVector2 Graphics::GetRenderTargetDimensions() const
     {
         int width, height;
@@ -278,11 +550,6 @@ namespace My3D
         }
 
         return IntVector2(width, height);
-    }
-
-    void Graphics::Clear(ClearTargetFlags flags, const Color &color, float depth, unsigned int stencil)
-    {
-        IntVector2 rtSize = GetRenderTargetDimensions();
     }
 
     void Graphics::SetVertexBuffer(VertexBuffer *buffer)
@@ -846,16 +1113,6 @@ namespace My3D
             Texture* texture = dynamic_cast<Texture*>(*i);
             if (texture)
                 texture->SetParametersDirty();
-        }
-    }
-
-    void Graphics::Close()
-    {
-        if (window_)
-        {
-            SDL_ShowCursor(SDL_TRUE);
-            SDL_DestroyWindow(window_);
-            window_ = nullptr;
         }
     }
 
@@ -1800,21 +2057,6 @@ namespace My3D
         }
     }
 
-    void Graphics::SetFlushGPU(bool enable)
-    {
-        flushGPU_ = enable;
-        if (impl_->device_)
-        {
-            IDXGIDevice1* dxgiDevice;
-            impl_->device_->QueryInterface(IID_IDXGIDevice1, (void**)(&dxgiDevice));
-            if (dxgiDevice)
-            {
-                dxgiDevice->SetMaximumFrameLatency(enable ? 1 : 3);
-                dxgiDevice->Release();
-            }
-        }
-    }
-
     void Graphics::CheckFeatureSupport()
     {
         anisotropySupport_ = true;
@@ -1877,6 +2119,13 @@ namespace My3D
         textureUnits_["VolumeMap"] = TU_VOLUMEMAP;
         textureUnits_["ZoneCubeMap"] = TU_ZONE;
         textureUnits_["ZoneVolumeMap"] = TU_ZONE;
+    }
+
+    void Graphics::PrepareDraw()
+    {
+        for (unsigned i = 0; i < impl_->dirtyConstantBuffers_.Size(); ++i)
+            impl_->dirtyConstantBuffers_[i]->Apply();
+        impl_->dirtyConstantBuffers_.Clear();
     }
 
     void Graphics::CreateResolveTexture()

@@ -2,14 +2,24 @@
 // Created by luchu on 2022/2/3.
 //
 
-#include "Core/Context.h"
 #include "Core/CoreEvents.h"
-#include "Graphics/Renderer.h"
-#include "Graphics/GraphicsDefs.h"
-#include "Graphics/GraphicsEvents.h"
+#include "Graphics/Camera.h"
+#include "Graphics/Geometry.h"
 #include "Graphics/Graphics.h"
-#include "Graphics/RenderSurface.h"
+#include "Graphics/GraphicsEvents.h"
+#include "Graphics/GraphicsImpl.h"
+#include "Graphics/IndexBuffer.h"
+#include "Graphics/VertexBuffer.h"
+#include "Graphics/Material.h"
+#include "Graphics/Octree.h"
+#include "Graphics/Renderer.h"
+#include "Graphics/ShaderVariation.h"
+#include "Graphics/Technique.h"
+#include "Graphics/Texture2D.h"
+#include "Graphics/TextureCube.h"
 #include "Resource/ResourceCache.h"
+#include "Resource/XMLFile.h"
+#include "Scene/Scene.h"
 #include "IO/Log.h"
 
 
@@ -258,6 +268,11 @@ namespace My3D
         }
     }
 
+    Geometry* Renderer::GetQuadGeometry()
+    {
+        return dirLightGeometry_;
+    }
+
     void Renderer::Update(float timeStep)
     {
 
@@ -272,6 +287,16 @@ namespace My3D
             return;
 
         graphics_ = graphics;
+
+        if (!graphics_->GetShadowMapFormat())
+            drawShadows_ = false;
+
+        // Validate the shadow quality level
+        // SetShadowQuality(shadowQuality_);
+
+        defaultLightRamp_ = cache->GetResource<Texture2D>("Textures/Ramp.png");
+        defaultLightSpot_ = cache->GetResource<Texture2D>("Textures/Spot.png");
+        defaultMaterial_ = new Material(context_);
 
         initialized_ = true;
 
