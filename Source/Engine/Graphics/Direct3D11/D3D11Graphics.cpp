@@ -632,6 +632,131 @@ namespace My3D
         return true;
     }
 
+    void Graphics::Draw(PrimitiveType type, unsigned vertexStart, unsigned vertexCount)
+    {
+        if (!vertexCount || !impl_->shaderProgram_)
+            return;
+
+        PrepareDraw();
+
+        unsigned primitiveCount;
+        D3D_PRIMITIVE_TOPOLOGY d3dPrimitiveType;
+
+        if (fillMode_ == FILL_POINT)
+            type = POINT_LIST;
+
+        GetD3DPrimitiveType(vertexCount, type, primitiveCount, d3dPrimitiveType);
+        if (d3dPrimitiveType != primitiveType_)
+        {
+            impl_->deviceContext_->IASetPrimitiveTopology(d3dPrimitiveType);
+            primitiveType_ = d3dPrimitiveType;
+        }
+        impl_->deviceContext_->Draw(vertexCount, vertexStart);
+
+        numPrimitives_ += primitiveCount;
+        ++numBatches_;
+    }
+
+    void Graphics::Draw(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned minVertex, unsigned vertexCount)
+    {
+        if (!vertexCount || !impl_->shaderProgram_)
+            return;
+
+        PrepareDraw();
+
+        unsigned primitiveCount;
+        D3D_PRIMITIVE_TOPOLOGY d3dPrimitiveType;
+
+        if (fillMode_ == FILL_POINT)
+            type = POINT_LIST;
+
+        GetD3DPrimitiveType(indexCount, type, primitiveCount, d3dPrimitiveType);
+        if (d3dPrimitiveType != primitiveType_)
+        {
+            impl_->deviceContext_->IASetPrimitiveTopology(d3dPrimitiveType);
+            primitiveType_ = d3dPrimitiveType;
+        }
+        impl_->deviceContext_->DrawIndexed(indexCount, indexStart, 0);
+
+        numPrimitives_ += primitiveCount;
+        ++numBatches_;
+    }
+
+    void Graphics::Draw(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned baseVertexIndex, unsigned minVertex, unsigned vertexCount)
+    {
+        if (!vertexCount || !impl_->shaderProgram_)
+            return;
+
+        PrepareDraw();
+
+        unsigned primitiveCount;
+        D3D_PRIMITIVE_TOPOLOGY d3dPrimitiveType;
+
+        if (fillMode_ == FILL_POINT)
+            type = POINT_LIST;
+
+        GetD3DPrimitiveType(indexCount, type, primitiveCount, d3dPrimitiveType);
+        if (d3dPrimitiveType != primitiveType_)
+        {
+            impl_->deviceContext_->IASetPrimitiveTopology(d3dPrimitiveType);
+            primitiveType_ = d3dPrimitiveType;
+        }
+        impl_->deviceContext_->DrawIndexed(indexCount, indexStart, baseVertexIndex);
+
+        numPrimitives_ += primitiveCount;
+        ++numBatches_;
+    }
+
+    void Graphics::DrawInstanced(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned minVertex, unsigned vertexCount, unsigned instanceCount)
+    {
+        if (!indexCount || !instanceCount || !impl_->shaderProgram_)
+            return;
+
+        PrepareDraw();
+
+        unsigned primitiveCount;
+        D3D_PRIMITIVE_TOPOLOGY d3dPrimitiveType;
+
+        if (fillMode_ == FILL_POINT)
+            type = POINT_LIST;
+
+        GetD3DPrimitiveType(indexCount, type, primitiveCount, d3dPrimitiveType);
+        if (d3dPrimitiveType != primitiveType_)
+        {
+            impl_->deviceContext_->IASetPrimitiveTopology(d3dPrimitiveType);
+            primitiveType_ = d3dPrimitiveType;
+        }
+        impl_->deviceContext_->DrawIndexedInstanced(indexCount, instanceCount, indexStart, 0, 0);
+
+        numPrimitives_ += instanceCount * primitiveCount;
+        ++numBatches_;
+    }
+
+    void Graphics::DrawInstanced(PrimitiveType type, unsigned indexStart, unsigned indexCount, unsigned baseVertexIndex, unsigned minVertex, unsigned vertexCount, unsigned instanceCount)
+    {
+        if (!indexCount || !instanceCount || !impl_->shaderProgram_)
+            return;
+
+        PrepareDraw();
+
+        unsigned primitiveCount;
+        D3D_PRIMITIVE_TOPOLOGY d3dPrimitiveType;
+
+        if (fillMode_ == FILL_POINT)
+            type = POINT_LIST;
+
+        GetD3DPrimitiveType(indexCount, type, primitiveCount, d3dPrimitiveType);
+        if (d3dPrimitiveType != primitiveType_)
+        {
+            impl_->deviceContext_->IASetPrimitiveTopology(d3dPrimitiveType);
+            primitiveType_ = d3dPrimitiveType;
+        }
+        impl_->deviceContext_->DrawIndexedInstanced(indexCount, instanceCount, indexStart, baseVertexIndex, 0);
+
+        numPrimitives_ += instanceCount * primitiveCount;
+        ++numBatches_;
+    }
+
     bool Graphics::ResolveToTexture(TextureCube* texture)
     {
         if (!texture)

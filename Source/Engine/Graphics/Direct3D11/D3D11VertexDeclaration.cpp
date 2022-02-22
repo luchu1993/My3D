@@ -29,7 +29,6 @@ namespace My3D
         PODVector<D3D11_INPUT_ELEMENT_DESC> elementDescs;
         unsigned prevBufferDescs = 0;
 
-
         for (unsigned i = 0; i < MAX_VERTEX_STREAMS; ++i)
         {
             if (!vertexBuffers[i])
