@@ -153,8 +153,7 @@ namespace My3D
 
     void ShaderParameterAnimationInfo::ApplyValue(const Variant& newValue)
     {
-        // TODO:
-        // static_cast<Material*>(target_.Get())->SetShaderParameter(name_, newValue);
+        static_cast<Material*>(target_.Get())->SetShaderParameter(name_, newValue);
     }
 
     Material::Material(Context* context)
@@ -164,4 +163,76 @@ namespace My3D
 
     Material::~Material() = default;
 
+    void Material::RefreshShaderParameterHash()
+    {
+        VectorBuffer temp;
+        for (HashMap<StringHash, MaterialShaderParameter>::ConstIterator i = shaderParameters_.Begin();
+             i != shaderParameters_.End(); ++i)
+        {
+            temp.WriteStringHash(i->first_);
+            temp.WriteVariant(i->second_.value_);
+        }
+
+        shaderParameterHash_ = 0;
+        const unsigned char* data = temp.GetData();
+        unsigned dataSize = temp.GetSize();
+        for (unsigned i = 0; i < dataSize; ++i)
+            shaderParameterHash_ = SDBMHash(shaderParameterHash_, data[i]);
+    }
+
+    void Material::RefreshMemoryUse()
+    {
+        unsigned memoryUse = sizeof(Material);
+
+        memoryUse += techniques_.Size() * sizeof(TechniqueEntry);
+        memoryUse += MAX_TEXTURE_UNITS * sizeof(SharedPtr<Texture>);
+        memoryUse += shaderParameters_.Size() * sizeof(MaterialShaderParameter);
+
+        SetMemoryUse(memoryUse);
+    }
+
+    void Material::SetShaderParameter(const String& name, const Variant& value)
+    {
+        MaterialShaderParameter newParam;
+        newParam.name_ = name;
+        newParam.value_ = value;
+
+        StringHash nameHash(name);
+        shaderParameters_[nameHash] = newParam;
+
+        if (nameHash == PSP_MATSPECCOLOR)
+        {
+            VariantType type = value.GetType();
+            if (type == VAR_VECTOR3)
+            {
+                const Vector3& vec = value.GetVector3();
+                specular_ = vec.x_ > 0.0f || vec.y_ > 0.0f || vec.z_ > 0.0f;
+            }
+            else if (type == VAR_VECTOR4)
+            {
+                const Vector4& vec = value.GetVector4();
+                specular_ = vec.x_ > 0.0f || vec.y_ > 0.0f || vec.z_ > 0.0f;
+            }
+        }
+
+        if (!batchedParameterUpdate_)
+        {
+            RefreshShaderParameterHash();
+            RefreshMemoryUse();
+        }
+    }
+
+    String Material::GetTextureUnitName(TextureUnit unit)
+    {
+        return textureUnitNames[unit];
+    }
+
+    Variant Material::ParseShaderParameterValue(const String& value)
+    {
+        String valueTrimmed = value.Trimmed();
+        if (valueTrimmed.Length() && IsAlpha((unsigned)valueTrimmed[0]))
+            return Variant(ToBool(valueTrimmed));
+        else
+            return ToVectorVariant(valueTrimmed);
+    }
 }

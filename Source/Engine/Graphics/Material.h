@@ -99,30 +99,46 @@ namespace My3D
         /// Save to an XML element. Return true if successful.
         bool Save(XMLElement& dest) const;
         /// Set number of techniques.
-        /// @property
         void SetNumTechniques(unsigned num);
         /// Set technique.
         void SetTechnique(unsigned index, Technique* tech, MaterialQuality qualityLevel = QUALITY_LOW, float lodDistance = 0.0f);
         /// Set additional vertex shader defines. Separate multiple defines with spaces. Setting defines at the material level causes technique(s) to be cloned as necessary.
-        /// @property
         void SetVertexShaderDefines(const String& defines);
         /// Set additional pixel shader defines. Separate multiple defines with spaces. Setting defines at the material level causes technique(s) to be cloned as necessary.
-        /// @property
         void SetPixelShaderDefines(const String& defines);
         /// Set shader parameter.
-        /// @property{set_shaderParameters}
         void SetShaderParameter(const String& name, const Variant& value);
+
+        /// Return name for texture unit.
+        static String GetTextureUnitName(TextureUnit unit);
+        /// Parse a shader parameter value from a string. Retunrs either a bool, a float, or a 2 to 4-component vector.
+        static Variant ParseShaderParameterValue(const String& value);
 
     private:
         /// Helper function for loading XML files.
         bool BeginLoadXML(Deserializer& source);
+        /// Reset to defaults.
+        void ResetToDefaults();
+        /// Recalculate shader parameter hash.
+        void RefreshShaderParameterHash();
+        /// Recalculate the memory used by the material.
+        void RefreshMemoryUse();
+        /// Reapply shader defines to technique index. By default reapply all.
+        void ApplyShaderDefines(unsigned index = M_MAX_UNSIGNED);
+        /// Return shader parameter animation info.
+        ShaderParameterAnimationInfo* GetShaderParameterAnimationInfo(const String& name) const;
+        /// Update whether should be subscribed to scene or global update events for shader parameter animation.
+        void UpdateEventSubscription();
+        /// Update shader parameter animations.
+        void HandleAttributeAnimationUpdate(StringHash eventType, VariantMap& eventData);
+
         /// Techniques.
         Vector<TechniqueEntry> techniques_;
         /// Textures.
         HashMap<TextureUnit, SharedPtr<Texture> > textures_;
-        /// %Shader parameters.
+        /// Shader parameters.
         HashMap<StringHash, MaterialShaderParameter> shaderParameters_;
-        /// %Shader parameters animation infos.
+        /// Shader parameters animation infos.
         HashMap<StringHash, SharedPtr<ShaderParameterAnimationInfo> > shaderParameterAnimationInfos_;
         /// Vertex shader defines.
         String vertexShaderDefines_;
