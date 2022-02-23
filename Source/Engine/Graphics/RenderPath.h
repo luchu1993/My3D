@@ -178,6 +178,44 @@ namespace My3D
         bool Load(XMLFile* file);
         /// Append data from an XML file. Return true if successful.
         bool Append(XMLFile* file);
+        /// Enable/disable commands and rendertargets by tag.
+        void SetEnabled(const String& tag, bool active);
+        /// Return true of any of render targets or commands with specified tag are enabled.
+        bool IsEnabled(const String& tag) const;
+        /// Return true if renderpath or command with given tag exists.
+        bool IsAdded(const String& tag) const;
+        /// Toggle enabled state of commands and rendertargets by tag.
+        void ToggleEnabled(const String& tag);
+        /// Assign rendertarget at index.
+        void SetRenderTarget(unsigned index, const RenderTargetInfo& info);
+        /// Add a rendertarget.
+        void AddRenderTarget(const RenderTargetInfo& info);
+        /// Remove a rendertarget by index.
+        void RemoveRenderTarget(unsigned index);
+        /// Remove a rendertarget by name.
+        void RemoveRenderTarget(const String& name);
+        /// Remove rendertargets by tag name.
+        void RemoveRenderTargets(const String& tag);
+        /// Assign command at index.
+        void SetCommand(unsigned index, const RenderPathCommand& command);
+        /// Add a command to the end of the list.
+        void AddCommand(const RenderPathCommand& command);
+        /// Insert a command at a position.
+        void InsertCommand(unsigned index, const RenderPathCommand& command);
+        /// Remove a command by index.
+        void RemoveCommand(unsigned index);
+        /// Remove commands by tag name.
+        void RemoveCommands(const String& tag);
+        /// Set a shader parameter in all commands that define it.
+        void SetShaderParameter(const String& name, const Variant& value);
+        /// Return number of rendertargets.
+        unsigned GetNumRenderTargets() const { return renderTargets_.Size(); }
+        /// Return number of commands.
+        unsigned GetNumCommands() const { return commands_.Size(); }
+        /// Return command at index, or null if does not exist.
+        RenderPathCommand* GetCommand(unsigned index) { return index < commands_.Size() ? &commands_[index] : nullptr; }
+        /// Return a shader parameter (first appearance in any command).
+        const Variant& GetShaderParameter(const String& name) const;
 
         /// Rendertargets.
         Vector<RenderTargetInfo> renderTargets_;

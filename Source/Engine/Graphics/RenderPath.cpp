@@ -332,4 +332,165 @@ namespace My3D
 
         return true;
     }
+
+    void RenderPath::SetEnabled(const String& tag, bool active)
+    {
+        for (unsigned i = 0; i < renderTargets_.Size(); ++i)
+        {
+            if (!renderTargets_[i].tag_.Compare(tag, false))
+                renderTargets_[i].enabled_ = active;
+        }
+
+        for (unsigned i = 0; i < commands_.Size(); ++i)
+        {
+            if (!commands_[i].tag_.Compare(tag, false))
+                commands_[i].enabled_ = active;
+        }
+    }
+
+    bool RenderPath::IsEnabled(const String& tag) const
+    {
+        for (unsigned i = 0; i < renderTargets_.Size(); ++i)
+        {
+            if (!renderTargets_[i].tag_.Compare(tag, false) && renderTargets_[i].enabled_)
+                return true;
+        }
+
+        for (unsigned i = 0; i < commands_.Size(); ++i)
+        {
+            if (!commands_[i].tag_.Compare(tag, false) && commands_[i].enabled_)
+                return true;
+        }
+
+        return false;
+    }
+
+    bool RenderPath::IsAdded(const String& tag) const
+    {
+        for (unsigned i = 0; i < renderTargets_.Size(); ++i)
+        {
+            if (!renderTargets_[i].tag_.Compare(tag, false))
+                return true;
+        }
+
+        for (unsigned i = 0; i < commands_.Size(); ++i)
+        {
+            if (!commands_[i].tag_.Compare(tag, false))
+                return true;
+        }
+
+        return false;
+    }
+
+    void RenderPath::ToggleEnabled(const String& tag)
+    {
+        for (unsigned i = 0; i < renderTargets_.Size(); ++i)
+        {
+            if (!renderTargets_[i].tag_.Compare(tag, false))
+                renderTargets_[i].enabled_ = !renderTargets_[i].enabled_;
+        }
+
+        for (unsigned i = 0; i < commands_.Size(); ++i)
+        {
+            if (!commands_[i].tag_.Compare(tag, false))
+                commands_[i].enabled_ = !commands_[i].enabled_;
+        }
+    }
+
+    void RenderPath::SetRenderTarget(unsigned index, const RenderTargetInfo& info)
+    {
+        if (index < renderTargets_.Size())
+            renderTargets_[index] = info;
+        else if (index == renderTargets_.Size())
+            AddRenderTarget(info);
+    }
+
+    void RenderPath::AddRenderTarget(const RenderTargetInfo& info)
+    {
+        renderTargets_.Push(info);
+    }
+
+    void RenderPath::RemoveRenderTarget(unsigned index)
+    {
+        renderTargets_.Erase(index);
+    }
+
+    void RenderPath::RemoveRenderTarget(const String& name)
+    {
+        for (unsigned i = 0; i < renderTargets_.Size(); ++i)
+        {
+            if (!renderTargets_[i].name_.Compare(name, false))
+            {
+                renderTargets_.Erase(i);
+                return;
+            }
+        }
+    }
+
+    void RenderPath::RemoveRenderTargets(const String& tag)
+    {
+        for (unsigned i = renderTargets_.Size() - 1; i < renderTargets_.Size(); --i)
+        {
+            if (!renderTargets_[i].tag_.Compare(tag, false))
+                renderTargets_.Erase(i);
+        }
+    }
+
+    void RenderPath::SetCommand(unsigned index, const RenderPathCommand& command)
+    {
+        if (index < commands_.Size())
+            commands_[index] = command;
+        else if (index == commands_.Size())
+            AddCommand(command);
+    }
+
+    void RenderPath::AddCommand(const RenderPathCommand& command)
+    {
+        commands_.Push(command);
+    }
+
+    void RenderPath::InsertCommand(unsigned index, const RenderPathCommand& command)
+    {
+        commands_.Insert(index, command);
+    }
+
+    void RenderPath::RemoveCommand(unsigned index)
+    {
+        commands_.Erase(index);
+    }
+
+    void RenderPath::RemoveCommands(const String& tag)
+    {
+        for (unsigned i = commands_.Size() - 1; i < commands_.Size(); --i)
+        {
+            if (!commands_[i].tag_.Compare(tag, false))
+                commands_.Erase(i);
+        }
+    }
+
+    void RenderPath::SetShaderParameter(const String& name, const Variant& value)
+    {
+        StringHash nameHash(name);
+
+        for (unsigned i = 0; i < commands_.Size(); ++i)
+        {
+            HashMap<StringHash, Variant>::Iterator j = commands_[i].shaderParameters_.Find(nameHash);
+            if (j != commands_[i].shaderParameters_.End())
+                j->second_ = value;
+        }
+    }
+
+    const Variant& RenderPath::GetShaderParameter(const String& name) const
+    {
+        StringHash nameHash(name);
+
+        for (unsigned i = 0; i < commands_.Size(); ++i)
+        {
+            HashMap<StringHash, Variant>::ConstIterator j = commands_[i].shaderParameters_.Find(nameHash);
+            if (j != commands_[i].shaderParameters_.End())
+                return j->second_;
+        }
+
+        return Variant::EMPTY;
+    }
 }
