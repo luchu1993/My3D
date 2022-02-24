@@ -334,8 +334,7 @@ namespace My3D
         /// Allocate a shadow map. If shadow map reuse is disabled, a different map is returned each time.
         Texture2D* GetShadowMap(Light* light, Camera* camera, unsigned viewWidth, unsigned viewHeight);
         /// Allocate a rendertarget or depth-stencil texture for deferred rendering or postprocessing. Should only be called during actual rendering, not before.
-        Texture* GetScreenBuffer
-                (int width, int height, unsigned format, int multiSample, bool autoResolve, bool cubemap, bool filtered, bool srgb, unsigned persistentKey = 0);
+        Texture* GetScreenBuffer(int width, int height, unsigned format, int multiSample, bool autoResolve, bool cubemap, bool filtered, bool srgb, unsigned persistentKey = 0);
         /// Allocate a depth-stencil surface that does not need to be readable. Should only be called during actual rendering, not before.
         RenderSurface* GetDepthStencil(int width, int height, int multiSample, bool autoResolve);
         /// Allocate an occlusion buffer.
@@ -369,6 +368,8 @@ namespace My3D
 
         /// Graphics subsystem.
         WeakPtr<Graphics> graphics_;
+        /// Default renderpath.
+        SharedPtr<RenderPath> defaultRenderPath_;
         /// Default non-textured material technique.
         SharedPtr<Technique> defaultTechnique_;
         /// Directional light quad geometry.

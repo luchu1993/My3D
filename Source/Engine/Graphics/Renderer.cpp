@@ -13,6 +13,7 @@
 #include "Graphics/Material.h"
 #include "Graphics/Octree.h"
 #include "Graphics/Renderer.h"
+#include "Graphics/RenderPath.h"
 #include "Graphics/ShaderVariation.h"
 #include "Graphics/Technique.h"
 #include "Graphics/Texture2D.h"
@@ -301,6 +302,20 @@ namespace My3D
         initialized_ = true;
 
         SubscribeToEvent(E_RENDERUPDATE, MY3D_HANDLER(Renderer, HandleRenderUpdate));
+    }
+
+    RenderPath* Renderer::GetDefaultRenderPath() const
+    {
+        return defaultRenderPath_;
+    }
+
+    Technique* Renderer::GetDefaultTechnique() const
+    {
+        // Assign default when first asked if not assigned yet
+        if (!defaultTechnique_)
+            const_cast<SharedPtr<Technique>& >(defaultTechnique_) = GetSubsystem<ResourceCache>()->GetResource<Technique>("Techniques/NoTexture.xml");
+
+        return defaultTechnique_;
     }
 
     void Renderer::HandleScreenMode(StringHash eventType, VariantMap& eventData)
