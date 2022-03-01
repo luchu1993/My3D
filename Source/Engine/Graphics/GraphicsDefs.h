@@ -22,7 +22,8 @@ namespace My3D
     };
 
     /// Geometry type for vertex shader geometry variations.
-    enum GeometryType {
+    enum GeometryType
+    {
         GEOM_STATIC = 0,
         GEOM_SKINNED = 1,
         GEOM_INSTANCED = 2,
@@ -36,7 +37,8 @@ namespace My3D
     };
 
     /// Blending mode.
-    enum BlendMode {
+    enum BlendMode
+    {
         BLEND_REPLACE = 0,
         BLEND_ADD,
         BLEND_MULTIPLY,
@@ -50,7 +52,8 @@ namespace My3D
     };
 
     /// Depth or stencil compare mode.
-    enum CompareMode {
+    enum CompareMode
+    {
         CMP_ALWAYS = 0,
         CMP_EQUAL,
         CMP_NOTEQUAL,
@@ -62,7 +65,8 @@ namespace My3D
     };
 
     /// Culling mode.
-    enum CullMode {
+    enum CullMode
+    {
         CULL_NONE = 0,
         CULL_CCW,
         CULL_CW,
@@ -70,7 +74,8 @@ namespace My3D
     };
 
     /// Fill mode.
-    enum FillMode {
+    enum FillMode
+    {
         FILL_SOLID = 0,
         FILL_WIREFRAME,
         FILL_POINT

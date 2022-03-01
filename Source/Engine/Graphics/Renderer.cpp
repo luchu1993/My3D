@@ -293,15 +293,66 @@ namespace My3D
             drawShadows_ = false;
 
         // Validate the shadow quality level
-        // SetShadowQuality(shadowQuality_);
+        SetShadowQuality(shadowQuality_);
 
         defaultLightRamp_ = cache->GetResource<Texture2D>("Textures/Ramp.png");
         defaultLightSpot_ = cache->GetResource<Texture2D>("Textures/Spot.png");
         defaultMaterial_ = new Material(context_);
 
+        defaultRenderPath_ = new RenderPath();
+        defaultRenderPath_->Load(cache->GetResource<XMLFile>("RenderPaths/Forward.xml"));
+
+        CreateGeometries();
+        CreateInstancingBuffer();
+
+        viewports_.Resize(1);
+        ResetShadowMaps();
+        ResetBuffers();
+
         initialized_ = true;
 
         SubscribeToEvent(E_RENDERUPDATE, MY3D_HANDLER(Renderer, HandleRenderUpdate));
+
+        MY3D_LOGINFO("Initialized renderer");
+    }
+
+    void Renderer::LoadShaders()
+    {
+        MY3D_LOGDEBUG("Reloading shaders");
+
+        // Release old material shaders, mark them for reload
+        ReleaseMaterialShaders();
+        shadersChangedFrameNumber_ = GetSubsystem<Time>()->GetFrameNumber();
+
+        // Construct new names for deferred light volume pixel shaders based on rendering options
+        deferredLightPSVariations_.Resize(MAX_DEFERRED_LIGHT_PS_VARIATIONS);
+
+        for (unsigned i = 0; i < MAX_DEFERRED_LIGHT_PS_VARIATIONS; ++i)
+        {
+            deferredLightPSVariations_[i] = lightPSVariations[i % DLPS_ORTHO];
+            if ((i % DLPS_ORTHO) >= DLPS_SHADOW)
+                deferredLightPSVariations_[i] += GetShadowVariations();
+            if (i >= DLPS_ORTHO)
+                deferredLightPSVariations_[i] += "ORTHO ";
+        }
+
+        shadersDirty_ = false;
+    }
+
+    void Renderer::LoadPassShaders(Pass *pass, Vector<SharedPtr<ShaderVariation>> &vertexShaders, Vector<SharedPtr<ShaderVariation>> &pixelShaders, const BatchQueue &queue)
+    {
+        // Forget all the old shaders
+        vertexShaders.Clear();
+        pixelShaders.Clear();
+
+        String vsDefines = pass->GetEffectiveVertexShaderDefines();
+        String psDefines = pass->GetEffectivePixelShaderDefines();
+
+        // Make sure to end defines with space to allow appending engine's defines
+        if (vsDefines.Length() && !vsDefines.EndsWith(" "))
+            vsDefines += ' ';
+        if (psDefines.Length() && !psDefines.EndsWith(" "))
+            psDefines += ' ';
     }
 
     RenderPath* Renderer::GetDefaultRenderPath() const

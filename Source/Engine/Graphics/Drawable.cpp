@@ -4,9 +4,21 @@
 
 #include "Graphics/Drawable.h"
 #include "Graphics/Octree.h"
+#include "Graphics/Material.h"
+
 
 namespace My3D
 {
+    const char* GEOMETRY_CATEGORY = "Geometry";
+
+    SourceBatch::SourceBatch() = default;
+
+    SourceBatch::SourceBatch(const SourceBatch& batch) = default;
+
+    SourceBatch::~SourceBatch() = default;
+
+    SourceBatch& SourceBatch::operator =(const SourceBatch& rhs)= default;
+
     void Drawable::ProcessRayQuery(const RayOctreeQuery& query, PODVector<RayQueryResult>& results)
     {
         float distance = query.ray_.HitDistance(GetWorldBoundingBox());

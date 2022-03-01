@@ -361,10 +361,42 @@ namespace My3D
     private:
         /// Initialize when screen mode initially set.
         void Initialize();
+        /// Reload shaders.
+        void LoadShaders();
+        /// Reload shaders for a material pass. The related batch queue is provided in case it has extra shader compilation defines.
+        void LoadPassShaders(Pass* pass, Vector<SharedPtr<ShaderVariation> >& vertexShaders, Vector<SharedPtr<ShaderVariation> >& pixelShaders, const BatchQueue& queue);
+        /// Release shaders used in materials.
+        void ReleaseMaterialShaders();
+        /// Reload textures.
+        void ReloadTextures();
+        /// Create light volume geometries.
+        void CreateGeometries();
+        /// Create instancing vertex buffer.
+        void CreateInstancingBuffer();
+        /// Create point light shadow indirection texture data.
+        void SetIndirectionTextureData();
+        /// Update a queued viewport for rendering.
+        void UpdateQueuedViewport(unsigned index);
+        /// Prepare for rendering of a new view.
+        void PrepareViewRender();
+        /// Remove unused occlusion and screen buffers.
+        void RemoveUnusedBuffers();
+        /// Reset shadow map allocation counts.
+        void ResetShadowMapAllocations();
+        /// Reset screem buffer allocation counts.
+        void ResetScreenBufferAllocations();
+        /// Remove all shadow maps. Called when global shadow map resolution or format is changed.
+        void ResetShadowMaps();
+        /// Remove all occlusion and screen buffers.
+        void ResetBuffers();
+        /// Find variations for shadow shaders.
+        String GetShadowVariations() const;
         /// Handle screen mode event.
         void HandleScreenMode(StringHash eventType, VariantMap& eventData);
         /// Handle render update event.
         void HandleRenderUpdate(StringHash eventType, VariantMap& eventData);
+        /// Blur the shadow map.
+        void BlurShadowMap(View* view, Texture2D* shadowMap, float blurScale);
 
         /// Graphics subsystem.
         WeakPtr<Graphics> graphics_;
