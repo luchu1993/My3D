@@ -47,6 +47,101 @@ namespace My3D
         unsigned viewMask_;
     };
 
+    /// Point octree query.
+    class MY3D_API PointOctreeQuery : public OctreeQuery
+    {
+    public:
+        /// Construct with point and query parameters.
+        PointOctreeQuery(PODVector<Drawable*>& result, const Vector3& point, unsigned char drawableFlags = DRAWABLE_ANY, unsigned viewMask = DEFAULT_VIEWMASK)
+            : OctreeQuery(result, drawableFlags, viewMask)
+            , point_(point)
+        {
+        }
+
+        /// Intersection test for an octant.
+        Intersection TestOctant(const BoundingBox& box, bool inside) override;
+        /// Intersection test for drawables.
+        void TestDrawables(Drawable** start, Drawable** end, bool inside) override;
+
+        /// Point
+        Vector3 point_;
+    };
+
+    /// Sphere octree query
+    class MY3D_API SphereOctreeQuery : public OctreeQuery
+    {
+    public:
+        /// Construct with sphere and query parameters.
+        SphereOctreeQuery(PODVector<Drawable*>& result, const Sphere& sphere, unsigned char drawableFlags = DRAWABLE_ANY, unsigned viewMask = DEFAULT_VIEWMASK)
+            : OctreeQuery(result, drawableFlags, viewMask)
+            , sphere_(sphere)
+        {
+        }
+
+        /// Intersection test for an octant.
+        Intersection TestOctant(const BoundingBox& box, bool inside) override;
+        /// Intersection test for drawables.
+        void TestDrawables(Drawable** start, Drawable** end, bool inside) override;
+
+        /// Sphere.
+        Sphere sphere_;
+    };
+
+    /// Bounding box octree query.
+    class MY3D_API BoxOctreeQuery : public OctreeQuery
+    {
+        public:
+        /// Construct with bounding box and query parameters.
+        BoxOctreeQuery(PODVector<Drawable*>& result, const BoundingBox& box, unsigned char drawableFlags = DRAWABLE_ANY, unsigned viewMask = DEFAULT_VIEWMASK)
+            : OctreeQuery(result, drawableFlags, viewMask)
+            , box_(box)
+        {
+        }
+
+        /// Intersection test for an octant.
+        Intersection TestOctant(const BoundingBox& box, bool inside) override;
+        /// Intersection test for drawables.
+        void TestDrawables(Drawable** start, Drawable** end, bool inside) override;
+
+        /// Bounding box.
+        BoundingBox box_;
+    };
+
+    /// Frustum octree query.
+    class MY3D_API FrustumOctreeQuery : public OctreeQuery
+    {
+        public:
+        /// Construct with frustum and query parameters.
+        FrustumOctreeQuery(PODVector<Drawable*>& result, const Frustum& frustum, unsigned char drawableFlags = DRAWABLE_ANY, unsigned viewMask = DEFAULT_VIEWMASK)
+            : OctreeQuery(result, drawableFlags, viewMask)
+            , frustum_(frustum)
+        {
+        }
+
+        /// Intersection test for an octant.
+        Intersection TestOctant(const BoundingBox& box, bool inside) override;
+        /// Intersection test for drawables.
+        void TestDrawables(Drawable** start, Drawable** end, bool inside) override;
+
+        /// Frustum.
+        Frustum frustum_;
+    };
+
+    class MY3D_API AllContentOctreeQuery : public OctreeQuery
+    {
+        public:
+        /// Construct.
+        AllContentOctreeQuery(PODVector<Drawable*>& result, unsigned char drawableFlags, unsigned viewMask)
+            : OctreeQuery(result, drawableFlags, viewMask)
+        {
+        }
+
+        /// Intersection test for an octant.
+        Intersection TestOctant(const BoundingBox& box, bool inside) override;
+        /// Intersection test for drawables.
+        void TestDrawables(Drawable** start, Drawable** end, bool inside) override;
+    };
+
     /// Graphics raycast detail level.
     enum RayQueryLevel
     {
