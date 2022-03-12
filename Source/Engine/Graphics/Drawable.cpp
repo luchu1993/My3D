@@ -46,4 +46,83 @@ namespace My3D
         return worldBoundingBox_;
     }
 
+    void Drawable::SetDrawDistance(float distance)
+    {
+        drawDistance_ = distance;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetShadowDistance(float distance)
+    {
+        shadowDistance_ = distance;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetLodBias(float bias)
+    {
+        lodBias_ = Max(bias, M_EPSILON);
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetViewMask(unsigned mask)
+    {
+        viewMask_ = mask;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetLightMask(unsigned mask)
+    {
+        lightMask_ = mask;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetShadowMask(unsigned mask)
+    {
+        shadowMask_ = mask;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetZoneMask(unsigned mask)
+    {
+        zoneMask_ = mask;
+        // Mark dirty to reset cached zone
+        OnMarkedDirty(node_);
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetMaxLights(unsigned num)
+    {
+        maxLights_ = num;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetCastShadows(bool enable)
+    {
+        castShadows_ = enable;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetOccluder(bool enable)
+    {
+        occluder_ = enable;
+        MarkNetworkUpdate();
+    }
+
+    void Drawable::SetOccludee(bool enable)
+    {
+        if (enable != occludee_)
+        {
+            occludee_ = enable;
+            // Reinsert to octree to make sure octant occlusion does not erroneously hide this drawable
+            if (octant_ && !updateQueued_)
+                octant_->GetRoot()->QueueUpdate(this);
+            MarkNetworkUpdate();
+        }
+    }
+
+    void Drawable::MarkForUpdate()
+    {
+        if (!updateQueued_ && octant_)
+            octant_->GetRoot()->QueueUpdate(this);
+    }
 }

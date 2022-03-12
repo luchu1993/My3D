@@ -114,6 +114,41 @@ namespace My3D
         virtual void UpdateGeometry(const FrameInfo& frame) { }
         /// Return whether a geometry update is necessary, and if it can happen in a worker thread.
         virtual UpdateGeometryType GetUpdateGeometryType() { return UPDATE_NONE; }
+        /// Return the geometry for a specific LOD level.
+        virtual Geometry* GetLodGeometry(unsigned batchIndex, unsigned level);
+        /// Return number of occlusion geometry triangles.
+        virtual unsigned GetNumOccluderTriangles() { return 0; }
+
+        /// Draw to occlusion buffer. Return true if did not run out of triangles.
+        virtual bool DrawOcclusion(OcclusionBuffer* buffer);
+        /// Visualize the component as debug geometry.
+        void DrawDebugGeometry(DebugRenderer* debug, bool depthTest) override;
+
+        /// Set draw distance.
+        void SetDrawDistance(float distance);
+        /// Set shadow draw distance.
+        void SetShadowDistance(float distance);
+        /// Set LOD bias.
+        void SetLodBias(float bias);
+        /// Set view mask. Is and'ed with camera's view mask to see if the object should be rendered.
+        void SetViewMask(unsigned mask);
+        /// Set light mask. Is and'ed with light's and zone's light mask to see if the object should be lit.
+        void SetLightMask(unsigned mask);
+        /// Set shadow mask. Is and'ed with light's light mask and zone's shadow mask to see if the object should be rendered to a shadow map.
+        void SetShadowMask(unsigned mask);
+        /// Set zone mask. Is and'ed with zone's zone mask to see if the object should belong to the zone.
+        void SetZoneMask(unsigned mask);
+        /// Set maximum number of per-pixel lights. Default 0 is unlimited.
+        void SetMaxLights(unsigned num);
+        /// Set shadowcaster flag.
+        void SetCastShadows(bool enable);
+        /// Set occlusion flag.
+        void SetOccluder(bool enable);
+        /// Set occludee flag.
+        void SetOccludee(bool enable);
+        /// Mark for update and octree reinsertion. Update is automatically queued when the drawable's scene node moves or changes scale.
+        void MarkForUpdate();
+
         /// Return local space bounding box. May not be applicable or properly updated on all drawables.
         const BoundingBox& GetBoundingBox() const { return boundingBox_; }
         /// Return world-space bounding box.

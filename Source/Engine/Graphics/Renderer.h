@@ -7,6 +7,7 @@
 #include "Graphics/Viewport.h"
 #include "Graphics/Drawable.h"
 #include "Graphics/GraphicsDefs.h"
+#include "Graphics/Batch.h"
 #include "Math/Color.h"
 
 
@@ -345,6 +346,10 @@ namespace My3D
         void StorePreparedView(View* view, Camera* camera);
         /// Return a prepared view if exists for the specified camera. Used to avoid duplicate view preparation CPU work.
         View* GetPreparedView(Camera* camera);
+        /// Choose shaders for a forward rendering batch. The related batch queue is provided in case it has extra shader compilation defines.
+        void SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows, const BatchQueue& queue);
+        /// Choose shaders for a deferred light volume batch.
+        void SetLightVolumeBatchShaders(Batch& batch, Camera* camera, const String& vsName, const String& psName, const String& vsDefines, const String& psDefines);
         /// Set cull mode while taking possible projection flipping into account.
         void SetCullMode(CullMode mode, Camera* camera);
         /// Ensure sufficient size of the instancing vertex buffer. Return true if successful.
