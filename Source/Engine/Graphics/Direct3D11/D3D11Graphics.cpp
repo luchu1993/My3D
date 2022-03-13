@@ -512,7 +512,7 @@ namespace My3D
             SetDepthWrite(flags & CLEAR_DEPTH);
             SetFillMode(FILL_SOLID);
             SetScissorTest(false);
-            // SetStencilTest(flags & CLEAR_STENCIL, CMP_ALWAYS, OP_REF, OP_KEEP, OP_KEEP, stencil);
+            SetStencilTest(flags & CLEAR_STENCIL, CMP_ALWAYS, OP_REF, OP_KEEP, OP_KEEP, stencil);
             SetShaders(GetShader(VS, "ClearFramebuffer"), GetShader(PS, "ClearFramebuffer"));
             SetShaderParameter(VSP_MODEL, model);
             SetShaderParameter(VSP_VIEWPROJ, projection);
@@ -520,7 +520,7 @@ namespace My3D
 
             // geometry->Draw(this);
 
-            // SetStencilTest(false);
+            SetStencilTest(false);
             ClearParameterSources();
         }
 
@@ -1774,6 +1774,15 @@ namespace My3D
         }
     }
 
+    void Graphics::SetRenderTarget(unsigned index, Texture2D* texture)
+    {
+        RenderSurface* renderTarget = nullptr;
+        if (texture)
+            renderTarget = texture->GetRenderSurface();
+
+        SetRenderTarget(index, renderTarget);
+    }
+
     void Graphics::SetDepthStencil(RenderSurface* depthStencil)
     {
         if (depthStencil != depthStencil_)
@@ -1901,6 +1910,72 @@ namespace My3D
         }
     }
 
+    void Graphics::SetStencilTest(bool enable, CompareMode mode, StencilOp pass, StencilOp fail, StencilOp zFail, unsigned stencilRef,unsigned compareMask, unsigned writeMask)
+    {
+        if (enable != stencilTest_)
+        {
+            stencilTest_ = enable;
+            impl_->depthStateDirty_ = true;
+        }
+
+        if (enable)
+        {
+            if (mode != stencilTestMode_)
+            {
+                stencilTestMode_ = mode;
+                impl_->depthStateDirty_ = true;
+            }
+            if (pass != stencilPass_)
+            {
+                stencilPass_ = pass;
+                impl_->depthStateDirty_ = true;
+            }
+            if (fail != stencilFail_)
+            {
+                stencilFail_ = fail;
+                impl_->depthStateDirty_ = true;
+            }
+            if (zFail != stencilZFail_)
+            {
+                stencilZFail_ = zFail;
+                impl_->depthStateDirty_ = true;
+            }
+            if (compareMask != stencilCompareMask_)
+            {
+                stencilCompareMask_ = compareMask;
+                impl_->depthStateDirty_ = true;
+            }
+            if (writeMask != stencilWriteMask_)
+            {
+                stencilWriteMask_ = writeMask;
+                impl_->depthStateDirty_ = true;
+            }
+            if (stencilRef != stencilRef_)
+            {
+                stencilRef_ = stencilRef;
+                impl_->stencilRefDirty_ = true;
+                impl_->depthStateDirty_ = true;
+            }
+        }
+    }
+
+    void Graphics::SetClipPlane(bool enable, const Plane& clipPlane, const Matrix3x4& view, const Matrix4& projection)
+    {
+        useClipPlane_ = enable;
+
+        if (enable)
+        {
+            Matrix4 viewProj = projection * view;
+            clipPlane_ = clipPlane.Transformed(viewProj).ToVector4();
+            SetShaderParameter(VSP_CLIPPLANE, clipPlane_);
+        }
+    }
+
+    bool Graphics::IsInitialized() const
+    {
+        return window_ != nullptr && impl_->GetDevice() != nullptr;
+    }
+
     void Graphics::SetBlendMode(BlendMode mode, bool alphaToCoverage)
     {
         if (mode != blendMode_ || alphaToCoverage != alphaToCoverage_)
@@ -1975,11 +2050,6 @@ namespace My3D
             lineAntiAlias_ = enable;
             impl_->rasterizerStateDirty_ = true;
         }
-    }
-
-    bool Graphics::IsInitialized() const
-    {
-        return window_ != nullptr && impl_->GetDevice() != nullptr;
     }
 
     PODVector<int> Graphics::GetMultiSampleLevels() const

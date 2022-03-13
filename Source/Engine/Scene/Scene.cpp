@@ -636,6 +636,12 @@ namespace My3D
         }
     }
 
+    void Scene::DelayedMarkedDirty(Component* component)
+    {
+        MutexLock lock(sceneMutex_);
+        delayedDirtyComponents_.Push(component);
+    }
+
     void Scene::UpdateAsyncLoading()
     {
 

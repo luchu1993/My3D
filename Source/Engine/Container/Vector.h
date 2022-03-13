@@ -719,7 +719,7 @@ public:
         Insert(pos, vector);
         return Begin() + pos;
     }
-    /// Inser a vector partially by iterators
+    /// Insert a vector partially by iterators
     Iterator Insert(const Iterator& dest, const ConstIterator& start, const ConstIterator& end)
     {
         auto pos = (unsigned)(dest - Begin());

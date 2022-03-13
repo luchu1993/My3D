@@ -202,6 +202,24 @@ namespace My3D
         return GetResourceRef(zoneTexture_, TextureCube::GetTypeStatic());
     }
 
+    void Zone::OnMarkedDirty(Node* node)
+    {
+        // Due to the octree query and weak pointer manipulation, is not safe from worker threads
+        Scene* scene = GetScene();
+        if (scene && scene->IsThreadedUpdate())
+        {
+            scene->DelayedMarkedDirty(this);
+            return;
+        }
+
+        Drawable::OnMarkedDirty(node);
+
+        // Clear zone reference from all drawables inside the bounding box, and mark gradient dirty in neighbor zones
+        ClearDrawablesZone();
+
+        inverseWorldDirty_ = true;
+    }
+
     void Zone::OnWorldBoundingBoxUpdate()
     {
         worldBoundingBox_ = boundingBox_.Transformed(node_->GetWorldTransform());
@@ -278,5 +296,33 @@ namespace My3D
     void Zone::OnRemoveFromOctree()
     {
         ClearDrawablesZone();
+    }
+
+    void Zone::ClearDrawablesZone()
+    {
+        if (octant_ && lastWorldBoundingBox_.Defined())
+        {
+            PODVector<Drawable*> result;
+            BoxOctreeQuery query(result, lastWorldBoundingBox_, DRAWABLE_GEOMETRY | DRAWABLE_ZONE);
+            octant_->GetRoot()->GetDrawables(query);
+
+            for (PODVector<Drawable*>::Iterator i = result.Begin(); i != result.End(); ++i)
+            {
+                Drawable* drawable = *i;
+                unsigned drawableFlags = drawable->GetDrawableFlags();
+                if (drawableFlags & DRAWABLE_GEOMETRY)
+                    drawable->SetZone(nullptr);
+                else if (drawableFlags & DRAWABLE_ZONE)
+                {
+                    auto* zone = static_cast<Zone*>(drawable);
+                    zone->lastAmbientStartZone_.Reset();
+                    zone->lastAmbientEndZone_.Reset();
+                }
+            }
+        }
+
+        lastWorldBoundingBox_ = GetWorldBoundingBox();
+        lastAmbientStartZone_.Reset();
+        lastAmbientEndZone_.Reset();
     }
 }

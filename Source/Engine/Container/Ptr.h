@@ -59,7 +59,10 @@ public:
         if (ptr_ == rhs.ptr_)
             return *this;
 
-        SharedPtr<T> copy(this);
+        SharedPtr<T> copy(rhs);
+        Swap(copy);
+
+        return *this;
     }
     /// Assign from a raw pointer
     SharedPtr<T>& operator=(T* ptr)

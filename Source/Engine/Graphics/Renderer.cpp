@@ -20,6 +20,7 @@
 #include "Graphics/TextureCube.h"
 #include "Graphics/Zone.h"
 #include "Graphics/Light.h"
+#include "Graphics/View.h"
 #include "Resource/ResourceCache.h"
 #include "Resource/XMLFile.h"
 #include "Scene/Scene.h"
@@ -247,6 +248,189 @@ namespace My3D
 
     Renderer::~Renderer() = default;
 
+    void Renderer::SetShadowQuality(ShadowQuality quality)
+    {
+        if (!graphics_)
+            return;
+
+        // If no hardware PCF, do not allow to select one-sample quality
+        if (!graphics_->GetHardwareShadowSupport())
+        {
+            if (quality == SHADOWQUALITY_SIMPLE_16BIT)
+                quality = SHADOWQUALITY_PCF_16BIT;
+
+            if (quality == SHADOWQUALITY_SIMPLE_24BIT)
+                quality = SHADOWQUALITY_PCF_24BIT;
+        }
+        // if high resolution is not allowed
+        if (!graphics_->GetHiresShadowMapFormat())
+        {
+            if (quality == SHADOWQUALITY_SIMPLE_24BIT)
+                quality = SHADOWQUALITY_SIMPLE_16BIT;
+
+            if (quality == SHADOWQUALITY_PCF_24BIT)
+                quality = SHADOWQUALITY_PCF_16BIT;
+        }
+        if (quality != shadowQuality_)
+        {
+            shadowQuality_ = quality;
+            shadersDirty_ = true;
+            if (quality == SHADOWQUALITY_BLUR_VSM)
+                SetShadowMapFilter(this, static_cast<ShadowMapFilter>(&Renderer::BlurShadowMap));
+            else
+                SetShadowMapFilter(nullptr, nullptr);
+
+            ResetShadowMaps();
+        }
+    }
+
+    void Renderer::SetShadowMapFilter(Object* instance, ShadowMapFilter functionPtr)
+    {
+        shadowMapFilterInstance_ = instance;
+        shadowMapFilter_ = functionPtr;
+    }
+
+    void Renderer::SetReuseShadowMaps(bool enable)
+    {
+        reuseShadowMaps_ = enable;
+    }
+
+    void Renderer::SetMaxShadowMaps(int shadowMaps)
+    {
+        if (shadowMaps < 1)
+            return;
+
+        maxShadowMaps_ = shadowMaps;
+        for (HashMap<int, Vector<SharedPtr<Texture2D> > >::Iterator i = shadowMaps_.Begin(); i != shadowMaps_.End(); ++i)
+        {
+            if ((int)i->second_.Size() > maxShadowMaps_)
+                i->second_.Resize((unsigned)maxShadowMaps_);
+        }
+    }
+
+    void Renderer::SetDynamicInstancing(bool enable)
+    {
+        if (!instancingBuffer_)
+            enable = false;
+
+        dynamicInstancing_ = enable;
+    }
+
+    void Renderer::SetNumExtraInstancingBufferElements(int elements)
+    {
+        if (numExtraInstancingBufferElements_ != elements)
+        {
+            numExtraInstancingBufferElements_ = Clamp(elements, 0, MAX_EXTRA_INSTANCING_BUFFER_ELEMENTS);
+            CreateInstancingBuffer();
+        }
+    }
+
+    void Renderer::SetMinInstances(int instances)
+    {
+        minInstances_ = Max(instances, 1);
+    }
+
+    void Renderer::ReloadShaders()
+    {
+        shadersDirty_ = true;
+    }
+
+    Viewport* Renderer::GetViewport(unsigned index) const
+    {
+        return index < viewports_.Size() ? viewports_[index] : nullptr;
+    }
+
+    void Renderer::CreateInstancingBuffer()
+    {
+        // Do not create buffer if instancing not supported
+        if (!graphics_->GetInstancingSupport())
+        {
+            instancingBuffer_.Reset();
+            dynamicInstancing_ = false;
+            return;
+        }
+
+        instancingBuffer_ = new VertexBuffer(context_);
+        const PODVector<VertexElement> instancingBufferElements = CreateInstancingBufferElements(numExtraInstancingBufferElements_);
+        if (!instancingBuffer_->SetSize(INSTANCING_BUFFER_DEFAULT_SIZE, instancingBufferElements, true))
+        {
+            instancingBuffer_.Reset();
+            dynamicInstancing_ = false;
+        }
+    }
+
+    void Renderer::ResetShadowMaps()
+    {
+        shadowMaps_.Clear();
+        shadowMapAllocations_.Clear();
+        colorShadowMaps_.Clear();
+    }
+
+    void Renderer::ResetBuffers()
+    {
+        // occlusionBuffers_.Clear();
+        screenBuffers_.Clear();
+        screenBufferAllocations_.Clear();
+    }
+
+    String Renderer::GetShadowVariations() const
+    {
+        switch (shadowQuality_)
+        {
+            case SHADOWQUALITY_SIMPLE_16BIT:
+            #ifdef MY3D_OPENGL
+                return "SIMPLE_SHADOW ";
+            #else
+                if (graphics_->GetHardwareShadowSupport())
+                    return "SIMPLE_SHADOW ";
+                else
+                    return "SIMPLE_SHADOW SHADOWCMP ";
+            #endif
+            case SHADOWQUALITY_SIMPLE_24BIT:
+                return "SIMPLE_SHADOW ";
+            case SHADOWQUALITY_PCF_16BIT:
+            #ifdef MY3D_OPENGL
+                return "PCF_SHADOW ";
+            #else
+                if (graphics_->GetHardwareShadowSupport())
+                    return "PCF_SHADOW ";
+                else
+                    return "PCF_SHADOW SHADOWCMP ";
+            #endif
+            case SHADOWQUALITY_PCF_24BIT:
+                return "PCF_SHADOW ";
+            case SHADOWQUALITY_VSM:
+                return "VSM_SHADOW ";
+            case SHADOWQUALITY_BLUR_VSM:
+                return "VSM_SHADOW ";
+        }
+        return "";
+    }
+
+    const Rect& Renderer::GetLightScissor(Light* light, Camera* camera)
+    {
+        Pair<Light*, Camera*> combination(light, camera);
+
+        HashMap<Pair<Light*, Camera*>, Rect>::Iterator i = lightScissorCache_.Find(combination);
+        if (i != lightScissorCache_.End())
+            return i->second_;
+
+        const Matrix3x4& view = camera->GetView();
+        const Matrix4& projection = camera->GetProjection();
+
+        assert(light->GetLightType() != LIGHT_DIRECTIONAL);
+        if (light->GetLightType() == LIGHT_SPOT)
+        {
+            Frustum viewFrustum(light->GetViewSpaceFrustum(view));
+            return lightScissorCache_[combination] = viewFrustum.Projected(projection);
+        }
+        else // LIGHT_POINT
+        {
+            BoundingBox viewBox(light->GetWorldBoundingBox().Transformed(view));
+            return lightScissorCache_[combination] = viewBox.Projected(projection);
+        }
+    }
+
     void Renderer::QueueRenderSurface(RenderSurface* renderTarget)
     {
         if (renderTarget)
@@ -271,14 +455,242 @@ namespace My3D
         }
     }
 
+    Camera* Renderer::GetShadowCamera()
+    {
+        MutexLock lock(rendererMutex_);
+
+        assert(numShadowCameras_ <= shadowCameraNodes_.Size());
+        if (numShadowCameras_ == shadowCameraNodes_.Size())
+        {
+            SharedPtr<Node> newNode(new Node(context_));
+            newNode->CreateComponent<Camera>();
+            shadowCameraNodes_.Push(newNode);
+        }
+
+        auto* camera = shadowCameraNodes_[numShadowCameras_++]->GetComponent<Camera>();
+        camera->SetOrthographic(false);
+        camera->SetZoom(1.0f);
+
+        return camera;
+    }
+
+    void Renderer::StorePreparedView(View* view, Camera* camera)
+    {
+        if (view && camera)
+            preparedViews_[camera] = view;
+    }
+
+    View* Renderer::GetPreparedView(Camera* camera)
+    {
+        HashMap<Camera*, WeakPtr<View> >::Iterator i = preparedViews_.Find(camera);
+        return i != preparedViews_.End() ? i->second_ : nullptr;
+    }
+
+    void Renderer::SetLightVolumeBatchShaders(Batch& batch, Camera* camera, const String& vsName, const String& psName, const String& vsDefines, const String& psDefines)
+    {
+        assert(deferredLightPSVariations_.Size());
+
+        unsigned vsi = DLVS_NONE;
+        unsigned psi = DLPS_NONE;
+        Light* light = batch.lightQueue_->light_;
+
+        switch (light->GetLightType())
+        {
+            case LIGHT_DIRECTIONAL:
+                vsi += DLVS_DIR;
+                break;
+
+            case LIGHT_SPOT:
+                psi += DLPS_SPOT;
+                break;
+
+            case LIGHT_POINT:
+                if (light->GetShapeTexture())
+                    psi += DLPS_POINTMASK;
+                else
+                    psi += DLPS_POINT;
+                break;
+        }
+
+        if (batch.lightQueue_->shadowMap_)
+        {
+            if (light->GetShadowBias().normalOffset_ > 0.0)
+                psi += DLPS_SHADOWNORMALOFFSET;
+            else
+                psi += DLPS_SHADOW;
+        }
+
+        if (specularLighting_ && light->GetSpecularIntensity() > 0.0f)
+            psi += DLPS_SPEC;
+
+        if (camera->IsOrthographic())
+        {
+            vsi += DLVS_ORTHO;
+            psi += DLPS_ORTHO;
+        }
+
+        if (vsDefines.Length())
+            batch.vertexShader_ = graphics_->GetShader(VS, vsName, deferredLightVSVariations[vsi] + vsDefines);
+        else
+            batch.vertexShader_ = graphics_->GetShader(VS, vsName, deferredLightVSVariations[vsi]);
+
+        if (psDefines.Length())
+            batch.pixelShader_ = graphics_->GetShader(PS, psName, deferredLightPSVariations_[psi] + psDefines);
+        else
+            batch.pixelShader_ = graphics_->GetShader(PS, psName, deferredLightPSVariations_[psi]);
+    }
+
+    void Renderer::SetCullMode(CullMode mode, Camera* camera)
+    {
+        // If a camera is specified, check whether it reverses culling due to vertical flipping or reflection
+        if (camera && camera->GetReverseCulling())
+        {
+            if (mode == CULL_CW)
+                mode = CULL_CCW;
+            else if (mode == CULL_CCW)
+                mode = CULL_CW;
+        }
+
+        graphics_->SetCullMode(mode);
+    }
+
+    void Renderer::OptimizeLightByScissor(Light* light, Camera* camera)
+    {
+        if (light && light->GetLightType() != LIGHT_DIRECTIONAL)
+            graphics_->SetScissorTest(true, GetLightScissor(light, camera));
+        else
+            graphics_->SetScissorTest(false);
+    }
+
+    Geometry* Renderer::GetLightGeometry(Light* light)
+    {
+        switch (light->GetLightType())
+        {
+            case LIGHT_DIRECTIONAL:
+                return dirLightGeometry_;
+            case LIGHT_SPOT:
+                return spotLightGeometry_;
+            case LIGHT_POINT:
+                return pointLightGeometry_;
+        }
+
+        return nullptr;
+    }
+
     Geometry* Renderer::GetQuadGeometry()
     {
         return dirLightGeometry_;
     }
 
+    RenderSurface* Renderer::GetDepthStencil(int width, int height, int multiSample, bool autoResolve)
+    {
+        // Return the default depth-stencil surface if applicable
+        // (when using OpenGL Graphics will allocate right size surfaces on demand to emulate Direct3D9)
+        if (width == graphics_->GetWidth() && height == graphics_->GetHeight() && multiSample == 1 &&
+            graphics_->GetMultiSample() == multiSample)
+            return nullptr;
+        else
+        {
+            return static_cast<Texture2D*>(GetScreenBuffer(width, height, Graphics::GetDepthStencilFormat(), multiSample, autoResolve, false, false, false))->GetRenderSurface();
+        }
+    }
+
     void Renderer::Update(float timeStep)
     {
 
+    }
+
+    Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, int multiSample, bool autoResolve, bool cubemap, bool filtered, bool srgb,
+                                       unsigned persistentKey)
+    {
+        bool depthStencil = (format == Graphics::GetDepthStencilFormat()) || (format == Graphics::GetReadableDepthFormat());
+        if (depthStencil)
+        {
+            filtered = false;
+            srgb = false;
+        }
+
+        if (cubemap)
+            height = width;
+
+        multiSample = Clamp(multiSample, 1, 16);
+        if (multiSample == 1)
+            autoResolve = false;
+
+        auto searchKey = (unsigned long long)format << 32u | multiSample << 24u | width << 12u | height;
+        if (filtered)
+            searchKey |= 0x8000000000000000ULL;
+        if (srgb)
+            searchKey |= 0x4000000000000000ULL;
+        if (cubemap)
+            searchKey |= 0x2000000000000000ULL;
+        if (autoResolve)
+            searchKey |= 0x1000000000000000ULL;
+
+        // Add persistent key if defined
+        if (persistentKey)
+            searchKey += (unsigned long long)persistentKey << 32u;
+
+        // If new size or format, initialize the allocation stats
+        if (screenBuffers_.Find(searchKey) == screenBuffers_.End())
+            screenBufferAllocations_[searchKey] = 0;
+
+        // Reuse depth-stencil buffers whenever the size matches, instead of allocating new
+        // Unless persistency specified
+        unsigned allocations = screenBufferAllocations_[searchKey];
+        if (!depthStencil || persistentKey)
+            ++screenBufferAllocations_[searchKey];
+
+        if (allocations >= screenBuffers_[searchKey].Size())
+        {
+            SharedPtr<Texture> newBuffer;
+
+            if (!cubemap)
+            {
+                SharedPtr<Texture2D> newTex2D(new Texture2D(context_));
+                /// \todo Mipmaps disabled for now. Allow to request mipmapped buffer?
+                newTex2D->SetNumLevels(1);
+                newTex2D->SetSize(width, height, format, depthStencil ? TEXTURE_DEPTHSTENCIL : TEXTURE_RENDERTARGET, multiSample, autoResolve);
+
+            #ifdef URHO3D_OPENGL
+                // OpenGL hack: clear persistent floating point screen buffers to ensure the initial contents aren't illegal (NaN)?
+                // Otherwise eg. the AutoExposure post process will not work correctly
+                if (persistentKey && Texture::GetDataType(format) == GL_FLOAT)
+                {
+                    // Note: this loses current rendertarget assignment
+                    graphics_->ResetRenderTargets();
+                    graphics_->SetRenderTarget(0, newTex2D);
+                    graphics_->SetDepthStencil((RenderSurface*)nullptr);
+                    graphics_->SetViewport(IntRect(0, 0, width, height));
+                    graphics_->Clear(CLEAR_COLOR);
+                }
+            #endif
+
+                newBuffer = newTex2D;
+            }
+            else
+            {
+                SharedPtr<TextureCube> newTexCube(new TextureCube(context_));
+                newTexCube->SetNumLevels(1);
+                newTexCube->SetSize(width, format, TEXTURE_RENDERTARGET, multiSample);
+
+                newBuffer = newTexCube;
+            }
+
+            newBuffer->SetSRGB(srgb);
+            newBuffer->SetFilterMode(filtered ? FILTER_BILINEAR : FILTER_NEAREST);
+            newBuffer->ResetUseTimer();
+            screenBuffers_[searchKey].Push(newBuffer);
+
+            MY3D_LOGDEBUG("Allocated new screen buffer size " + String(width) + "x" + String(height) + " format " + String(format));
+            return newBuffer;
+        }
+        else
+        {
+            Texture* buffer = screenBuffers_[searchKey][allocations];
+            buffer->ResetUseTimer();
+            return buffer;
+        }
     }
 
     void Renderer::Initialize()
@@ -567,6 +979,31 @@ namespace My3D
         return defaultTechnique_;
     }
 
+    void Renderer::ReleaseMaterialShaders()
+    {
+        auto* cache = GetSubsystem<ResourceCache>();
+        PODVector<Material*> materials;
+
+        cache->GetResources<Material>(materials);
+
+        for (unsigned i = 0; i < materials.Size(); ++i)
+            materials[i]->ReleaseShaders();
+    }
+
+    void Renderer::ReloadTextures()
+    {
+        auto* cache = GetSubsystem<ResourceCache>();
+        PODVector<Resource*> textures;
+
+        cache->GetResources(textures, Texture2D::GetTypeStatic());
+        for (unsigned i = 0; i < textures.Size(); ++i)
+            cache->ReloadResource(textures[i]);
+
+        cache->GetResources(textures, TextureCube::GetTypeStatic());
+        for (unsigned i = 0; i < textures.Size(); ++i)
+            cache->ReloadResource(textures[i]);
+    }
+
     void Renderer::HandleScreenMode(StringHash eventType, VariantMap& eventData)
     {
         if (!initialized_)
@@ -580,5 +1017,43 @@ namespace My3D
         using namespace RenderUpdate;
 
         Update(eventData[P_TIMESTEP].GetFloat());
+    }
+
+    void Renderer::BlurShadowMap(View* view, Texture2D* shadowMap, float blurScale)
+    {
+        graphics_->SetBlendMode(BLEND_REPLACE);
+        graphics_->SetDepthTest(CMP_ALWAYS);
+        graphics_->SetClipPlane(false);
+        graphics_->SetScissorTest(false);
+
+        // Get a temporary render buffer
+        auto* tmpBuffer = static_cast<Texture2D*>(GetScreenBuffer(shadowMap->GetWidth(), shadowMap->GetHeight(),
+                                                                  shadowMap->GetFormat(), 1, false, false, false, false));
+        graphics_->SetRenderTarget(0, tmpBuffer->GetRenderSurface());
+        graphics_->SetDepthStencil(GetDepthStencil(shadowMap->GetWidth(), shadowMap->GetHeight(), shadowMap->GetMultiSample(), shadowMap->GetAutoResolve()));
+        graphics_->SetViewport(IntRect(0, 0, shadowMap->GetWidth(), shadowMap->GetHeight()));
+
+        // Get shaders
+        static const char* shaderName = "ShadowBlur";
+        ShaderVariation* vs = graphics_->GetShader(VS, shaderName);
+        ShaderVariation* ps = graphics_->GetShader(PS, shaderName);
+        graphics_->SetShaders(vs, ps);
+
+        view->SetGBufferShaderParameters(IntVector2(shadowMap->GetWidth(), shadowMap->GetHeight()), IntRect(0, 0, shadowMap->GetWidth(), shadowMap->GetHeight()));
+
+        // Horizontal blur of the shadow map
+        static const StringHash blurOffsetParam("BlurOffsets");
+
+        graphics_->SetShaderParameter(blurOffsetParam, Vector2(shadowSoftness_ * blurScale / shadowMap->GetWidth(), 0.0f));
+        graphics_->SetTexture(TU_DIFFUSE, shadowMap);
+        view->DrawFullscreenQuad(true);
+
+        // Vertical blur
+        graphics_->SetRenderTarget(0, shadowMap);
+        graphics_->SetViewport(IntRect(0, 0, shadowMap->GetWidth(), shadowMap->GetHeight()));
+        graphics_->SetShaderParameter(blurOffsetParam, Vector2(0.0f, shadowSoftness_ * blurScale / shadowMap->GetHeight()));
+
+        graphics_->SetTexture(TU_DIFFUSE, tmpBuffer);
+        view->DrawFullscreenQuad(true);
     }
 }

@@ -3,6 +3,7 @@
 //
 
 
+#include "Math/Frustum.h"
 #include "Math/BoundingBox.h"
 #include "Math/Sphere.h"
 #include "Math/Matrix3x4.h"
@@ -18,6 +19,12 @@ namespace My3D
             return;
 
         Merge(vertices, count);
+    }
+
+    void BoundingBox::Define(const Frustum& frustum)
+    {
+        Clear();
+        Define(frustum.vertices_, NUM_FRUSTUM_VERTICES);
     }
 
     void BoundingBox::Define(const Sphere &sphere)

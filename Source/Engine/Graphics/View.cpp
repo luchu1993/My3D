@@ -124,6 +124,60 @@ namespace My3D
             graphics_->SetShaderParameter(k->first_, k->second_);
     }
 
+    void View::SetGBufferShaderParameters(const IntVector2& texSize, const IntRect& viewRect)
+    {
+        auto texWidth = (float)texSize.x_;
+        auto texHeight = (float)texSize.y_;
+        float widthRange = 0.5f * viewRect.Width() / texWidth;
+        float heightRange = 0.5f * viewRect.Height() / texHeight;
+
+    #ifdef MY3D_OPENGL
+        Vector4 bufferUVOffset(((float)viewRect.left_) / texWidth + widthRange,
+        1.0f - (((float)viewRect.top_) / texHeight + heightRange), widthRange, heightRange);
+    #else
+        const Vector2& pixelUVOffset = Graphics::GetPixelUVOffset();
+        Vector4 bufferUVOffset((pixelUVOffset.x_ + (float)viewRect.left_) / texWidth + widthRange,
+                               (pixelUVOffset.y_ + (float)viewRect.top_) / texHeight + heightRange, widthRange, heightRange);
+    #endif
+        graphics_->SetShaderParameter(VSP_GBUFFEROFFSETS, bufferUVOffset);
+
+        float invSizeX = 1.0f / texWidth;
+        float invSizeY = 1.0f / texHeight;
+        graphics_->SetShaderParameter(PSP_GBUFFERINVSIZE, Vector2(invSizeX, invSizeY));
+    }
+
+    void View::DrawFullscreenQuad(bool setIdentityProjection)
+    {
+        Geometry* geometry = renderer_->GetQuadGeometry();
+
+        // If no camera, no choice but to use identity projection
+        if (!camera_)
+            setIdentityProjection = true;
+
+        if (setIdentityProjection)
+        {
+            Matrix3x4 model = Matrix3x4::IDENTITY;
+            Matrix4 projection = Matrix4::IDENTITY;
+        #ifdef MY3D_OPENGL
+            if (camera_ && camera_->GetFlipVertical())
+            projection.m11_ = -1.0f;
+            model.m23_ = 0.0f;
+        #else
+            model.m23_ = 0.5f;
+        #endif
+
+            graphics_->SetShaderParameter(VSP_MODEL, model);
+            graphics_->SetShaderParameter(VSP_VIEWPROJ, projection);
+        }
+        else
+            graphics_->SetShaderParameter(VSP_MODEL, Light::GetFullscreenQuadTransform(camera_));
+
+        graphics_->SetCullMode(CULL_NONE);
+        graphics_->ClearTransformSources();
+
+        geometry->Draw(graphics_);
+    }
+
     void View::SendViewEvent(StringHash eventType)
     {
         using namespace BeginViewRender;

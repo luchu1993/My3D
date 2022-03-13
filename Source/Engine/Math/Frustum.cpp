@@ -6,6 +6,34 @@
 
 namespace My3D
 {
+    inline Vector3 ClipEdgeZ(const Vector3& v0, const Vector3& v1, float clipZ)
+    {
+        return Vector3(
+                v1.x_ + (v0.x_ - v1.x_) * ((clipZ - v1.z_) / (v0.z_ - v1.z_)),
+                v1.y_ + (v0.y_ - v1.y_) * ((clipZ - v1.z_) / (v0.z_ - v1.z_)),
+                clipZ
+        );
+    }
+
+    void ProjectAndMergeEdge(Vector3 v0, Vector3 v1, Rect& rect, const Matrix4& projection)
+    {
+        // Check if both vertices behind near plane
+        if (v0.z_ < M_MIN_NEARCLIP && v1.z_ < M_MIN_NEARCLIP)
+            return;
+
+        // Check if need to clip one of the vertices
+        if (v1.z_ < M_MIN_NEARCLIP)
+            v1 = ClipEdgeZ(v1, v0, M_MIN_NEARCLIP);
+        else if (v0.z_ < M_MIN_NEARCLIP)
+            v0 = ClipEdgeZ(v0, v1, M_MIN_NEARCLIP);
+
+        // Project, perspective divide and merge
+        Vector3 tV0(projection * v0);
+        Vector3 tV1(projection * v1);
+        rect.Merge(Vector2(tV0.x_, tV0.y_));
+        rect.Merge(Vector2(tV1.x_, tV1.y_));
+    }
+
     Frustum::Frustum(const Frustum& frustum) noexcept
     {
         *this = frustum;
@@ -176,5 +204,21 @@ namespace My3D
 
         transformed.UpdatePlanes();
         return transformed;
+    }
+
+    Rect Frustum::Projected(const Matrix4& projection) const
+    {
+        Rect rect;
+
+        ProjectAndMergeEdge(vertices_[0], vertices_[4], rect, projection);
+        ProjectAndMergeEdge(vertices_[1], vertices_[5], rect, projection);
+        ProjectAndMergeEdge(vertices_[2], vertices_[6], rect, projection);
+        ProjectAndMergeEdge(vertices_[3], vertices_[7], rect, projection);
+        ProjectAndMergeEdge(vertices_[4], vertices_[5], rect, projection);
+        ProjectAndMergeEdge(vertices_[5], vertices_[6], rect, projection);
+        ProjectAndMergeEdge(vertices_[6], vertices_[7], rect, projection);
+        ProjectAndMergeEdge(vertices_[7], vertices_[4], rect, projection);
+
+        return rect;
     }
 }

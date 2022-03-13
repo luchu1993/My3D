@@ -134,19 +134,19 @@ template <typename T> struct RandomAccessConstIterator
 
     RandomAccessConstIterator<T> operator-(int value) { return RandomAccessConstIterator<T>(ptr_ - value); }
 
-    int operator -(const RandomAccessConstIterator<T>& rhs) { return (int)(ptr_ - rhs.ptr_); }
+    int operator -(const RandomAccessConstIterator& rhs)  const { return (int)(ptr_ - rhs.ptr_); }
 
-    bool operator ==(const RandomAccessConstIterator<T>& rhs) { return ptr_ == rhs.ptr_; }
+    bool operator ==(const RandomAccessConstIterator& rhs) const { return ptr_ == rhs.ptr_; }
 
-    bool operator !=(const RandomAccessConstIterator<T>& rhs) { return ptr_ != rhs.ptr_; }
+    bool operator !=(const RandomAccessConstIterator& rhs) const { return ptr_ != rhs.ptr_; }
 
-    bool operator >(const RandomAccessConstIterator<T>& rhs) { return ptr_ > rhs.ptr_; }
+    bool operator >(const RandomAccessConstIterator& rhs) const { return ptr_ > rhs.ptr_; }
 
-    bool operator <(const RandomAccessConstIterator<T>& rhs) { return ptr_ < rhs.ptr_; }
+    bool operator <(const RandomAccessConstIterator& rhs) const { return ptr_ < rhs.ptr_; }
 
-    bool operator <=(const RandomAccessConstIterator<T>& rhs) { return ptr_ <= rhs.ptr_; }
+    bool operator <=(const RandomAccessConstIterator& rhs) const { return ptr_ <= rhs.ptr_; }
 
-    bool operator >=(const RandomAccessConstIterator<T>& rhs) { return ptr_ >= rhs.ptr_; }
+    bool operator >=(const RandomAccessConstIterator& rhs) const { return ptr_ >= rhs.ptr_; }
 
     const T* ptr_;
 };

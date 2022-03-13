@@ -473,6 +473,68 @@ namespace My3D
         }
     }
 
+    float Camera::GetLodDistance(float distance, float scale, float bias) const
+    {
+        float d = Max(lodBias_ * bias * scale * zoom_, M_EPSILON);
+        if (!orthographic_)
+            return distance / d;
+        else
+            return orthoSize_ / d;
+    }
+
+    Quaternion Camera::GetFaceCameraRotation(const Vector3& position, const Quaternion& rotation, FaceCameraMode mode, float minAngle)
+    {
+        if (!node_)
+            return rotation;
+
+        switch (mode)
+        {
+            case FC_ROTATE_XYZ:
+                return node_->GetWorldRotation();
+
+            case FC_ROTATE_Y:
+            {
+                Vector3 euler = rotation.EulerAngles();
+                euler.y_ = node_->GetWorldRotation().EulerAngles().y_;
+                return Quaternion(euler.x_, euler.y_, euler.z_);
+            }
+
+            case FC_LOOKAT_XYZ:
+            {
+                Quaternion lookAt;
+                lookAt.FromLookRotation(position - node_->GetWorldPosition());
+                return lookAt;
+            }
+
+            case FC_LOOKAT_Y:
+            case FC_LOOKAT_MIXED:
+            {
+                // Mixed mode needs true look-at vector
+                const Vector3 lookAtVec(position - node_->GetWorldPosition());
+                // While Y-only lookat happens on an XZ plane to make sure there are no unwanted transitions or singularities
+                const Vector3 lookAtVecXZ(lookAtVec.x_, 0.0f, lookAtVec.z_);
+
+                Quaternion lookAt;
+                lookAt.FromLookRotation(lookAtVecXZ);
+
+                Vector3 euler = rotation.EulerAngles();
+                if (mode == FC_LOOKAT_MIXED)
+                {
+                    const float angle = lookAtVec.Angle(rotation * Vector3::UP);
+                    if (angle > 180 - minAngle)
+                        euler.x_ += minAngle - (180 - angle);
+                    else if (angle < minAngle)
+                        euler.x_ -= minAngle - angle;
+                }
+                euler.y_ = lookAt.EulerAngles().y_;
+                return Quaternion(euler.x_, euler.y_, euler.z_);
+            }
+
+            default:
+                return rotation;
+        }
+    }
+
     Matrix3x4 Camera::GetEffectiveWorldTransform() const
     {
         Matrix3x4 worldTransform = node_ ? Matrix3x4(node_->GetWorldPosition(), node_->GetWorldRotation(), 1.0f) : Matrix3x4::IDENTITY;

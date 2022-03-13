@@ -136,6 +136,8 @@ namespace My3D
         void BeginThreadedUpdate();
         /// End a threaded update. Notify components that marked themselves for delayed dirty processing.
         void EndThreadedUpdate();
+        /// Add a component to the delayed dirty notify queue. Is thread-safe.
+        void DelayedMarkedDirty(Component* component);
         /// Register a node user variable hash reverse mapping (for editing).
         void RegisterVar(const String& name);
         /// Unregister a node user variable hash reverse mapping.

@@ -119,6 +119,12 @@ namespace My3D
         /// Set G-buffer offset and inverse size shader parameters. Called by Batch and internally by View.
         void SetGBufferShaderParameters(const IntVector2& texSize, const IntRect& viewRect);
 
+        /// Draw a fullscreen quad. Shaders and renderstates must have been set beforehand. Quad will be drawn to the middle of depth range, similarly to deferred directional lights.
+        void DrawFullscreenQuad(bool setIdentityProjection = false);
+
+        /// Get a named texture from the rendertarget list or from the resource cache, to be either used as a rendertarget or texture binding.
+        Texture* FindNamedTexture(const String& name, bool isRenderTarget, bool isVolumeMap = false);
+
     private:
         /// Send a view update or render related event through the Renderer subsystem. The parameters are the same for all of them.
         void SendViewEvent(StringHash eventType);

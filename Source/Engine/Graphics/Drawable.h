@@ -96,9 +96,9 @@ namespace My3D
         friend void UpdateDrawablesWork(const WorkItem* item, unsigned threadIndex);
 
     public:
-        /// Construct
+        /// Construct.
         Drawable(Context* context, unsigned char drawableFlags);
-        /// Destruct
+        /// Destruct.
         ~Drawable() override;
         /// Register object attributes. Drawable must be registered first.
         static void RegisterObject(Context* context);
@@ -148,7 +148,6 @@ namespace My3D
         void SetOccludee(bool enable);
         /// Mark for update and octree reinsertion. Update is automatically queued when the drawable's scene node moves or changes scale.
         void MarkForUpdate();
-
         /// Return local space bounding box. May not be applicable or properly updated on all drawables.
         const BoundingBox& GetBoundingBox() const { return boundingBox_; }
         /// Return world-space bounding box.
@@ -177,8 +176,32 @@ namespace My3D
         bool IsOccluder() const { return occluder_; }
         /// Return occludee flag.
         bool IsOccludee() const { return occludee_; }
+        /// Return whether is in view this frame from any viewport camera. Excludes shadow map cameras.
+        bool IsInView() const;
+        /// Return whether is in view of a specific camera this frame. Pass in a null camera to allow any camera, including shadow map cameras.
+        bool IsInView(Camera* camera) const;
+        /// Return draw call source data.
+        const Vector<SourceBatch>& GetBatches() const { return batches_; }
+        /// Set new zone. Zone assignment may optionally be temporary, meaning it needs to be re-evaluated on the next frame.
+        void SetZone(Zone* zone, bool temporary = false);
         /// Set sorting value.
-        void SetSortValue(float value) { sortValue_ = value; }
+        void SetSortValue(float value);
+        /// Set view-space depth bounds.
+        void SetMinMaxZ(float minZ, float maxZ)
+        {
+            minZ_ = minZ;
+            maxZ_ = maxZ;
+        }
+        /// Mark in view. Also clear the light list.
+        void MarkInView(const FrameInfo& frame);
+        /// Mark in view without specifying a camera. Used for shadow casters.
+        void MarkInView(unsigned frameNumber);
+        /// Sort and limit per-pixel lights to maximum allowed. Convert extra lights into vertex lights.
+        void LimitLights();
+        /// Sort and limit per-vertex lights to maximum allowed.
+        void LimitVertexLights(bool removeConvertedLights);
+        /// Set base pass flag for a batch.
+        void SetBasePass(unsigned batchIndex) { basePassFlags_ |= (1u << batchIndex); }
         /// Return octree octant.
         Octant* GetOctant() const { return octant_; }
         /// Return current zone.
@@ -191,6 +214,36 @@ namespace My3D
         float GetLodDistance() const { return lodDistance_; }
         /// Return sorting value.
         float GetSortValue() const { return sortValue_; }
+        /// Return whether is in view on the current frame. Called by View.
+        bool IsInView(const FrameInfo& frame, bool anyCamera = false) const;
+        /// Return whether has a base pass.
+        bool HasBasePass(unsigned batchIndex) const { return (basePassFlags_ & (1u << batchIndex)) != 0; }
+        /// Return per-pixel lights.
+        const PODVector<Light*>& GetLights() const { return lights_; }
+        /// Return per-vertex lights.
+        const PODVector<Light*>& GetVertexLights() const { return vertexLights_; }
+        /// Return the first added per-pixel light.
+        Light* GetFirstLight() const { return firstLight_; }
+        /// Return the minimum view-space depth.
+        float GetMinZ() const { return minZ_; }
+        /// Return the maximum view-space depth.
+        float GetMaxZ() const { return maxZ_; }
+        /// Add a per-pixel light affecting the object this frame.
+        void AddLight(Light* light)
+        {
+            if (!firstLight_)
+                firstLight_ = light;
+
+            // Need to store into the light list only if the per-pixel lights are being limited
+            // Otherwise recording the first light is enough
+            if (maxLights_)
+                lights_.Push(light);
+        }
+        /// Add a per-vertex light affecting the object this frame.
+        void AddVertexLight(Light* light)
+        {
+            vertexLights_.Push(light);
+        }
 
 protected:
         /// Handle node being assigned.
@@ -204,10 +257,12 @@ protected:
 
         /// Handle removal from octree.
         virtual void OnRemoveFromOctree() { }
+
         /// Add to octree.
         void AddToOctree();
         /// Remove from octree.
         void RemoveFromOctree();
+
         /// Move into another octree octant.
         void SetOctant(Octant* octant) { octant_ = octant; }
 
@@ -215,6 +270,8 @@ protected:
         BoundingBox worldBoundingBox_;
         /// Local-space bounding box.
         BoundingBox boundingBox_;
+        /// Draw call source data.
+        Vector<SourceBatch> batches_;
         /// Drawable flags.
         unsigned char drawableFlags_;
         /// Bounding box dirty flag.
@@ -235,6 +292,7 @@ protected:
         Zone* zone_;
         /// View mask.
         unsigned viewMask_;
+        /// Light mask.
         unsigned lightMask_;
         /// Shadow mask.
         unsigned shadowMask_;
