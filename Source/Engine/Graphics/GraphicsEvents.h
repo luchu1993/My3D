@@ -43,4 +43,44 @@ MY3D_EVENT(E_ENDRENDERING, EndRendering)
 {
 }
 
+/// Render of a view started.
+MY3D_EVENT(E_BEGINVIEWRENDER, BeginViewRender)
+{
+    MY3D_PARAM(P_VIEW, View);                    // View pointer
+    MY3D_PARAM(P_TEXTURE, Texture);              // Texture pointer
+    MY3D_PARAM(P_SURFACE, Surface);              // RenderSurface pointer
+    MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
+}
+
+/// A view has allocated its screen buffers for rendering. They can be accessed now with View::FindNamedTexture().
+MY3D_EVENT(E_VIEWBUFFERSREADY, ViewBuffersReady)
+{
+    MY3D_PARAM(P_VIEW, View);                    // View pointer
+    MY3D_PARAM(P_TEXTURE, Texture);              // Texture pointer
+    MY3D_PARAM(P_SURFACE, Surface);              // RenderSurface pointer
+    MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
+}
+
+/// A view has set global shader parameters for a new combination of vertex/pixel shaders. Custom global parameters can now be set.
+MY3D_EVENT(E_VIEWGLOBALSHADERPARAMETERS, ViewGlobalShaderParameters)
+{
+    MY3D_PARAM(P_VIEW, View);                    // View pointer
+    MY3D_PARAM(P_TEXTURE, Texture);              // Texture pointer
+    MY3D_PARAM(P_SURFACE, Surface);              // RenderSurface pointer
+    MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
+}
+
+/// Render of a view ended. Its screen buffers are still accessible if needed.
+MY3D_EVENT(E_ENDVIEWRENDER, EndViewRender)
+{
+    MY3D_PARAM(P_VIEW, View);                    // View pointer
+    MY3D_PARAM(P_TEXTURE, Texture);              // Texture pointer
+    MY3D_PARAM(P_SURFACE, Surface);              // RenderSurface pointer
+    MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
+}
+
 }

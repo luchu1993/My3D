@@ -7,6 +7,7 @@
 #include "Resource/Resource.h"
 #include "Scene/ValueAnimation.h"
 #include "Graphics/GraphicsDefs.h"
+#include "Graphics/Light.h"
 #include "Scene/ValueAnimationInfo.h"
 #include "Resource/XMLFile.h"
 
@@ -190,6 +191,8 @@ namespace My3D
         CullMode GetShadowCullMode() const { return shadowCullMode_; }
         /// Return polygon fill mode.
         FillMode GetFillMode() const { return fillMode_; }
+        /// Return depth bias.
+        const BiasParameters& GetDepthBias() const { return depthBias_; }
         /// Return alpha-to-coverage mode.
         bool GetAlphaToCoverage() const { return alphaToCoverage_; }
         /// Return whether line antialiasing is enabled.
@@ -247,6 +250,8 @@ namespace My3D
         CullMode shadowCullMode_{};
         /// Polygon fill mode.
         FillMode fillMode_{};
+        /// Depth bias parameters.
+        BiasParameters depthBias_{};
         /// Render order value.
         unsigned char renderOrder_{};
         /// Last auxiliary view rendered frame number.

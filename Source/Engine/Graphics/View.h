@@ -105,5 +105,160 @@ namespace My3D
         /// Render batches.
         void Render();
 
+        /// Return graphics subsystem.
+        Graphics* GetGraphics() const;
+        /// Return renderer subsystem.
+        Renderer* GetRenderer() const;
+
+        /// Set global (per-frame) shader parameters. Called by Batch and internally by View.
+        void SetGlobalShaderParameters();
+        /// Set camera-specific shader parameters. Called by Batch and internally by View.
+        void SetCameraShaderParameters(Camera* camera);
+        /// Set command's shader parameters if any. Called internally by View.
+        void SetCommandShaderParameters(const RenderPathCommand& command);
+        /// Set G-buffer offset and inverse size shader parameters. Called by Batch and internally by View.
+        void SetGBufferShaderParameters(const IntVector2& texSize, const IntRect& viewRect);
+
+    private:
+        /// Send a view update or render related event through the Renderer subsystem. The parameters are the same for all of them.
+        void SendViewEvent(StringHash eventType);
+        /// Return the drawable's zone, or camera zone if it has override mode enabled.
+        Zone* GetZone(Drawable* drawable)
+        {
+            if (cameraZoneOverride_)
+                return cameraZone_;
+            Zone* drawableZone = drawable->GetZone();
+            return drawableZone ? drawableZone : cameraZone_;
+        }
+
+        /// Graphics subsystem.
+        WeakPtr<Graphics> graphics_;
+        /// Renderer subsystem.
+        WeakPtr<Renderer> renderer_;
+        /// Scene to use.
+        Scene* scene_{};
+        /// Octree to use.
+        Octree* octree_{};
+        /// Viewport (rendering) camera.
+        Camera* camera_{};
+        /// Culling camera. Usually same as the viewport camera.
+        Camera* cullCamera_{};
+        /// Shared source view. Null if this view is using its own culling.
+        WeakPtr<View> sourceView_;
+        /// Zone the camera is inside, or default zone if not assigned.
+        Zone* cameraZone_{};
+        /// Zone at far clip plane.
+        Zone* farClipZone_{};
+        /// Occlusion buffer for the main camera.
+        OcclusionBuffer* occlusionBuffer_{};
+        /// Destination color rendertarget.
+        RenderSurface* renderTarget_{};
+        /// Substitute rendertarget for deferred rendering. Allocated if necessary.
+        RenderSurface* substituteRenderTarget_{};
+        /// Texture(s) for sampling the viewport contents. Allocated if necessary.
+        Texture* viewportTextures_[MAX_VIEWPORT_TEXTURES]{};
+        /// Color rendertarget active for the current renderpath command.
+        RenderSurface* currentRenderTarget_{};
+        /// Last used custom depth render surface.
+        RenderSurface* lastCustomDepthSurface_{};
+        /// Texture containing the latest viewport texture.
+        Texture* currentViewportTexture_{};
+        /// Dummy texture for D3D9 depth only rendering.
+        Texture* depthOnlyDummyTexture_{};
+        /// Viewport rectangle.
+        IntRect viewRect_;
+        /// Viewport size.
+        IntVector2 viewSize_;
+        /// Destination rendertarget size.
+        IntVector2 rtSize_;
+        /// Information of the frame being rendered.
+        FrameInfo frame_{};
+        /// View aspect ratio.
+        float aspectRatio_{};
+        /// Minimum Z value of the visible scene.
+        float minZ_{};
+        /// Maximum Z value of the visible scene.
+        float maxZ_{};
+        /// Material quality level.
+        int materialQuality_{};
+        /// Maximum number of occluder triangles.
+        int maxOccluderTriangles_{};
+        /// Minimum number of instances required in a batch group to render as instanced.
+        int minInstances_{};
+        /// Highest zone priority currently visible.
+        int highestZonePriority_{};
+        /// Geometries updated flag.
+        bool geometriesUpdated_{};
+        /// Camera zone's override flag.
+        bool cameraZoneOverride_{};
+        /// Draw shadows flag.
+        bool drawShadows_{};
+        /// Deferred flag. Inferred from the existence of a light volume command in the renderpath.
+        bool deferred_{};
+        /// Deferred ambient pass flag. This means that the destination rendertarget is being written to at the same time as albedo/normal/depth buffers, and needs to be RGBA on OpenGL.
+        bool deferredAmbient_{};
+        /// Forward light base pass optimization flag. If in use, combine the base pass and first light for all opaque objects.
+        bool useLitBase_{};
+        /// Has scene passes flag. If no scene passes, view can be defined without a valid scene or camera to only perform quad rendering.
+        bool hasScenePasses_{};
+        /// Whether is using a custom readable depth texture without a stencil channel.
+        bool noStencil_{};
+        /// Draw debug geometry flag. Copied from the viewport.
+        bool drawDebug_{};
+        /// Renderpath.
+        RenderPath* renderPath_{};
+        /// Per-thread octree query results.
+        Vector<PODVector<Drawable*> > tempDrawables_;
+        /// Per-thread geometries, lights and Z range collection results.
+        Vector<PerThreadSceneResult> sceneResults_;
+        /// Visible zones.
+        PODVector<Zone*> zones_;
+        /// Visible geometry objects.
+        PODVector<Drawable*> geometries_;
+        /// Geometry objects that will be updated in the main thread.
+        PODVector<Drawable*> nonThreadedGeometries_;
+        /// Geometry objects that will be updated in worker threads.
+        PODVector<Drawable*> threadedGeometries_;
+        /// Occluder objects.
+        PODVector<Drawable*> occluders_;
+        /// Lights.
+        PODVector<Light*> lights_;
+        /// Number of active occluders.
+        unsigned activeOccluders_{};
+
+        /// Drawables that limit their maximum light count.
+        HashSet<Drawable*> maxLightsDrawables_;
+        /// Rendertargets defined by the renderpath.
+        HashMap<StringHash, Texture*> renderTargets_;
+        /// Intermediate light processing results.
+        Vector<LightQueryResult> lightQueryResults_;
+        /// Info for scene render passes defined by the renderpath.
+        PODVector<ScenePassInfo> scenePasses_;
+        /// Per-pixel light queues.
+        Vector<LightBatchQueue> lightQueues_;
+        /// Per-vertex light queues.
+        HashMap<unsigned long long, LightBatchQueue> vertexLightQueues_;
+        /// Batch queues by pass index.
+        HashMap<unsigned, BatchQueue> batchQueues_;
+        /// Index of the GBuffer pass.
+        unsigned gBufferPassIndex_{};
+        /// Index of the opaque forward base pass.
+        unsigned basePassIndex_{};
+        /// Index of the alpha pass.
+        unsigned alphaPassIndex_{};
+        /// Index of the forward light pass.
+        unsigned lightPassIndex_{};
+        /// Index of the litbase pass.
+        unsigned litBasePassIndex_{};
+        /// Index of the litalpha pass.
+        unsigned litAlphaPassIndex_{};
+        /// Pointer to the light volume command if any.
+        const RenderPathCommand* lightVolumeCommand_{};
+        /// Pointer to the forwardlights command if any.
+        const RenderPathCommand* forwardLightsCommand_{};
+        /// Pointer to the current commmand if it contains shader parameters to be set for a render pass.
+        const RenderPathCommand* passCommand_{};
+        /// Flag for scene being resolved from the backbuffer.
+        bool usedResolve_{};
     };
 }

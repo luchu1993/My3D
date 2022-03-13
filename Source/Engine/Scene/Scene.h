@@ -142,6 +142,10 @@ namespace My3D
         void UnregisterVar(const String& name);
         /// Clear all registered node user variable hash reverse mappings.
         void UnregisterAllVars();
+        /// Return update time scale.
+        float GetTimeScale() const { return timeScale_; }
+        /// Return elapsed time in seconds.
+        float GetElapsedTime() const { return elapsedTime_; }
 
     private:
         /// Handle the logic update event to update the scene, if active.

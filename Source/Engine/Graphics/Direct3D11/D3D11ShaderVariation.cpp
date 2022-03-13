@@ -371,7 +371,7 @@ namespace My3D
                 String varName(varDesc.Name);
                 if (varName[0] == 'c')
                 {
-                    varName = varName.Substring(1); // Strip the c to follow Urho3D constant naming convention
+                    varName = varName.Substring(1); // Strip the c to follow My3D constant naming convention
                     parameters_[varName] = ShaderParameter{type_, varName, varDesc.StartOffset, varDesc.Size, cbRegister};
                 }
             }

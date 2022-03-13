@@ -26,7 +26,7 @@ public:
          : x_(vector.x_), y_(vector.y_), z_(0.0f) { }
     /// Construct from coordinates.
     Vector3(float x, float y, float z) noexcept : x_(x), y_(y),z_(z) { }
-    /// Construct from two-dimensional coordinates (for Urho2D).
+    /// Construct from two-dimensional coordinates
     Vector3(float x, float y) noexcept : x_(x), y_(y), z_(0.0f) { }
     /// Construct from a float array.
     explicit Vector3(const float* data) noexcept : x_(data[0]), y_(data[1]), z_(data[2]) { }

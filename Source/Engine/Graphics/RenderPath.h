@@ -133,7 +133,7 @@ namespace My3D
         String pixelShaderDefines_;
         /// Textures.
         String textureNames_[MAX_TEXTURE_UNITS];
-        /// %Shader parameters.
+        /// Shader parameters.
         HashMap<StringHash, Variant> shaderParameters_;
         /// Output rendertarget names and faces.
         Vector<Pair<String, CubeMapFace> > outputs_;

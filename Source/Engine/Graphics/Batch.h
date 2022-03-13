@@ -115,15 +115,15 @@ namespace My3D
     struct BatchGroup : public Batch
     {
         /// Construct with defaults.
-        BatchGroup() :
-                startIndex_(M_MAX_UNSIGNED)
+        BatchGroup()
+            : startIndex_(M_MAX_UNSIGNED)
         {
         }
 
         /// Construct from a batch.
-        explicit BatchGroup(const Batch& batch) :
-                Batch(batch),
-                startIndex_(M_MAX_UNSIGNED)
+        explicit BatchGroup(const Batch& batch)
+            : Batch(batch)
+            , startIndex_(M_MAX_UNSIGNED)
         {
         }
 
@@ -162,13 +162,13 @@ namespace My3D
         BatchGroupKey() = default;
 
         /// Construct from a batch.
-        explicit BatchGroupKey(const Batch& batch) :
-                zone_(batch.zone_),
-                lightQueue_(batch.lightQueue_),
-                pass_(batch.pass_),
-                material_(batch.material_),
-                geometry_(batch.geometry_),
-                renderOrder_(batch.renderOrder_)
+        explicit BatchGroupKey(const Batch& batch)
+            : zone_(batch.zone_)
+            , lightQueue_(batch.lightQueue_)
+            , pass_(batch.pass_)
+            , material_(batch.material_)
+            , geometry_(batch.geometry_)
+            , renderOrder_(batch.renderOrder_)
         {
         }
 

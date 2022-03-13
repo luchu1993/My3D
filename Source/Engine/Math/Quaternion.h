@@ -50,7 +50,7 @@ namespace My3D
         {
             FromAngleAxis(angle, axis);
         }
-        /// Construct from an angle (in degrees, for Urho2D).
+        /// Construct from an angle
         explicit Quaternion(float angle) noexcept
         {
             FromAngleAxis(angle, Vector3::FORWARD);

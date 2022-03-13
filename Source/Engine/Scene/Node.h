@@ -216,13 +216,13 @@ namespace My3D
         Vector3 LocalToWorld(const Vector3& position) const;
         /// Convert a local space position or rotation to world space.
         Vector3 LocalToWorld(const Vector4& vector) const;
-        /// Convert a local space position or rotation to world space (for Urho2D).
+        /// Convert a local space position or rotation to world space.
         Vector2 LocalToWorld2D(const Vector2& vector) const;
         /// Convert a world space position to local space.
         Vector3 WorldToLocal(const Vector3& position) const;
         /// Convert a world space position or rotation to local space.
         Vector3 WorldToLocal(const Vector4& vector) const;
-        /// Convert a world space position or rotation to local space (for Urho2D).
+        /// Convert a world space position or rotation to local space.
         Vector2 WorldToLocal2D(const Vector2& vector) const;
 
         /// Return whether is a direct or indirect child of specified node.
