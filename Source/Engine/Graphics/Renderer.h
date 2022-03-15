@@ -300,10 +300,11 @@ namespace My3D
         /// Return number of lights rendered.
         unsigned GetNumLights(bool allViews = false) const;
         /// Return number of shadow maps rendered.
-        /// @property
         unsigned GetNumShadowMaps(bool allViews = false) const;
         /// Return number of occluders rendered.
         unsigned GetNumOccluders(bool allViews = false) const;
+        /// Return the default zone.
+        Zone* GetDefaultZone() const { return defaultZone_; }
         /// Return the default material.
         Material* GetDefaultMaterial() const { return defaultMaterial_; }
         /// Return the default range attenuation texture.
@@ -409,6 +410,8 @@ namespace My3D
         SharedPtr<RenderPath> defaultRenderPath_;
         /// Default non-textured material technique.
         SharedPtr<Technique> defaultTechnique_;
+        /// Default zone.
+        SharedPtr<Zone> defaultZone_;
         /// Directional light quad geometry.
         SharedPtr<Geometry> dirLightGeometry_;
         /// Spot light volume geometry.

@@ -21,6 +21,7 @@
 #include "Graphics/Zone.h"
 #include "Graphics/Light.h"
 #include "Graphics/View.h"
+#include "Graphics/OcclusionBuffer.h"
 #include "Resource/ResourceCache.h"
 #include "Resource/XMLFile.h"
 #include "Scene/Scene.h"
@@ -382,6 +383,27 @@ namespace My3D
         }
     }
 
+    void Renderer::SetShadowSoftness(float shadowSoftness)
+    {
+        shadowSoftness_ = Max(shadowSoftness, 0.0f);
+    }
+
+    void Renderer::SetVSMShadowParameters(float minVariance, float lightBleedingReduction)
+    {
+        vsmShadowParams_.x_ = Max(minVariance, 0.0f);
+        vsmShadowParams_.y_ = Clamp(lightBleedingReduction, 0.0f, 1.0f);
+    }
+
+    void Renderer::SetVSMMultiSample(int multiSample)
+    {
+        multiSample = Clamp(multiSample, 1, 16);
+        if (multiSample != vsmMultiSample_)
+        {
+            vsmMultiSample_ = multiSample;
+            ResetShadowMaps();
+        }
+    }
+
     void Renderer::SetShadowMapFilter(Object* instance, ShadowMapFilter functionPtr)
     {
         shadowMapFilterInstance_ = instance;
@@ -428,14 +450,112 @@ namespace My3D
         minInstances_ = Max(instances, 1);
     }
 
+    void Renderer::SetMaxSortedInstances(int instances)
+    {
+        maxSortedInstances_ = Max(instances, 0);
+    }
+
     void Renderer::ReloadShaders()
     {
         shadersDirty_ = true;
     }
 
+    void Renderer::ApplyShadowMapFilter(View* view, Texture2D* shadowMap, float blurScale)
+    {
+        if (shadowMapFilterInstance_ && shadowMapFilter_)
+            (shadowMapFilterInstance_->*shadowMapFilter_)(view, shadowMap, blurScale);
+    }
+
     Viewport* Renderer::GetViewport(unsigned index) const
     {
         return index < viewports_.Size() ? viewports_[index] : nullptr;
+    }
+
+    Viewport* Renderer::GetViewportForScene(Scene* scene, unsigned index) const
+    {
+        for (unsigned i = 0; i < viewports_.Size(); ++i)
+        {
+            Viewport* viewport = viewports_[i];
+            if (viewport && viewport->GetScene() == scene)
+            {
+                if (index == 0)
+                    return viewport;
+                else
+                    --index;
+            }
+        }
+        return nullptr;
+    }
+
+    RenderPath* Renderer::GetDefaultRenderPath() const
+    {
+        return defaultRenderPath_;
+    }
+
+    Technique* Renderer::GetDefaultTechnique() const
+    {
+        // Assign default when first asked if not assigned yet
+        if (!defaultTechnique_)
+            const_cast<SharedPtr<Technique>& >(defaultTechnique_) = GetSubsystem<ResourceCache>()->GetResource<Technique>("Techniques/NoTexture.xml");
+
+        return defaultTechnique_;
+    }
+
+    unsigned Renderer::GetNumGeometries(bool allViews) const
+    {
+        unsigned numGeometries = 0;
+        unsigned lastView = allViews ? views_.Size() : 1;
+
+        for (unsigned i = 0; i < lastView; ++i)
+        {
+            // Use the source view's statistics if applicable
+            View* view = GetActualView(views_[i]);
+            if (!view)
+                continue;
+
+            numGeometries += view->GetGeometries().Size();
+        }
+
+        return numGeometries;
+    }
+
+    unsigned Renderer::GetNumLights(bool allViews) const
+    {
+        unsigned numLights = 0;
+        unsigned lastView = allViews ? views_.Size() : 1;
+
+        for (unsigned i = 0; i < lastView; ++i)
+        {
+            View* view = GetActualView(views_[i]);
+            if (!view)
+                continue;
+
+            numLights += view->GetLights().Size();
+        }
+
+        return numLights;
+    }
+
+    unsigned Renderer::GetNumShadowMaps(bool allViews) const
+    {
+        unsigned numShadowMaps = 0;
+        unsigned lastView = allViews ? views_.Size() : 1;
+
+        for (unsigned i = 0; i < lastView; ++i)
+        {
+            View* view = GetActualView(views_[i]);
+            if (!view)
+                continue;
+
+            const Vector<LightBatchQueue>& lightQueues = view->GetLightQueues();
+            for (Vector<LightBatchQueue>::ConstIterator i = lightQueues.Begin(); i != lightQueues.End(); ++i)
+            {
+                if (i->shadowMap_)
+                    ++numShadowMaps;
+            }
+        }
+
+        return numShadowMaps;
     }
 
     void Renderer::CreateInstancingBuffer()
@@ -584,6 +704,129 @@ namespace My3D
         return i != preparedViews_.End() ? i->second_ : nullptr;
     }
 
+    View* Renderer::GetActualView(View* view)
+    {
+        if (view && view->GetSourceView())
+            return view->GetSourceView();
+        else
+            return view;
+    }
+
+    void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows, const BatchQueue& queue)
+    {
+        Pass* pass = batch.pass_;
+
+        // Check if need to release/reload all shaders
+        if (pass->GetShadersLoadedFrameNumber() != shadersChangedFrameNumber_)
+            pass->ReleaseShaders();
+
+        Vector<SharedPtr<ShaderVariation> >& vertexShaders = queue.hasExtraDefines_ ? pass->GetVertexShaders(queue.vsExtraDefinesHash_) : pass->GetVertexShaders();
+        Vector<SharedPtr<ShaderVariation> >& pixelShaders = queue.hasExtraDefines_ ? pass->GetPixelShaders(queue.psExtraDefinesHash_) : pass->GetPixelShaders();
+
+        // Load shaders now if necessary
+        if (!vertexShaders.Size() || !pixelShaders.Size())
+            LoadPassShaders(pass, vertexShaders, pixelShaders, queue);
+
+        // Make sure shaders are loaded now
+        if (vertexShaders.Size() && pixelShaders.Size())
+        {
+            bool heightFog = batch.zone_ && batch.zone_->GetHeightFog();
+
+            // If instancing is not supported, but was requested, choose static geometry vertex shader instead
+            if (batch.geometryType_ == GEOM_INSTANCED && !GetDynamicInstancing())
+                batch.geometryType_ = GEOM_STATIC;
+
+            if (batch.geometryType_ == GEOM_STATIC_NOINSTANCING)
+                batch.geometryType_ = GEOM_STATIC;
+
+            //  Check whether is a pixel lit forward pass. If not, there is only one pixel shader
+            if (pass->GetLightingMode() == LIGHTING_PERPIXEL)
+            {
+                LightBatchQueue* lightQueue = batch.lightQueue_;
+                if (!lightQueue)
+                {
+                    // Do not log error, as it would result in a lot of spam
+                    batch.vertexShader_ = nullptr;
+                    batch.pixelShader_ = nullptr;
+                    return;
+                }
+
+                Light* light = lightQueue->light_;
+                unsigned vsi = 0;
+                unsigned psi = 0;
+                vsi = batch.geometryType_ * MAX_LIGHT_VS_VARIATIONS;
+
+                bool materialHasSpecular = batch.material_ ? batch.material_->GetSpecular() : true;
+                if (specularLighting_ && light->GetSpecularIntensity() > 0.0f && materialHasSpecular)
+                    psi += LPS_SPEC;
+                if (allowShadows && lightQueue->shadowMap_)
+                {
+                    if (light->GetShadowBias().normalOffset_ > 0.0f)
+                        vsi += LVS_SHADOWNORMALOFFSET;
+                    else
+                        vsi += LVS_SHADOW;
+                    psi += LPS_SHADOW;
+                }
+
+                switch (light->GetLightType())
+                {
+                    case LIGHT_DIRECTIONAL:
+                        vsi += LVS_DIR;
+                        break;
+
+                    case LIGHT_SPOT:
+                        psi += LPS_SPOT;
+                        vsi += LVS_SPOT;
+                        break;
+
+                    case LIGHT_POINT:
+                        if (light->GetShapeTexture())
+                            psi += LPS_POINTMASK;
+                        else
+                            psi += LPS_POINT;
+                        vsi += LVS_POINT;
+                        break;
+                }
+
+                if (heightFog)
+                    psi += MAX_LIGHT_PS_VARIATIONS;
+
+                batch.vertexShader_ = vertexShaders[vsi];
+                batch.pixelShader_ = pixelShaders[psi];
+            }
+            else
+            {
+                // Check if pass has vertex lighting support
+                if (pass->GetLightingMode() == LIGHTING_PERVERTEX)
+                {
+                    unsigned numVertexLights = 0;
+                    if (batch.lightQueue_)
+                        numVertexLights = batch.lightQueue_->vertexLights_.Size();
+
+                    unsigned vsi = batch.geometryType_ * MAX_VERTEXLIGHT_VS_VARIATIONS + numVertexLights;
+                    batch.vertexShader_ = vertexShaders[vsi];
+                }
+                else
+                {
+                    unsigned vsi = batch.geometryType_;
+                    batch.vertexShader_ = vertexShaders[vsi];
+                }
+
+                batch.pixelShader_ = pixelShaders[heightFog ? 1 : 0];
+            }
+        }
+
+        // Log error if shaders could not be assigned, but only once per technique
+        if (!batch.vertexShader_ || !batch.pixelShader_)
+        {
+            if (!shaderErrorDisplayed_.Contains(tech))
+            {
+                shaderErrorDisplayed_.Insert(tech);
+                MY3D_LOGERROR("Technique " + tech->GetName() + " has missing shaders");
+            }
+        }
+    }
+
     void Renderer::SetLightVolumeBatchShaders(Batch& batch, Camera* camera, const String& vsName, const String& psName, const String& vsDefines, const String& psDefines)
     {
         assert(deferredLightPSVariations_.Size());
@@ -650,6 +893,32 @@ namespace My3D
         }
 
         graphics_->SetCullMode(mode);
+    }
+
+    bool Renderer::ResizeInstancingBuffer(unsigned numInstances)
+    {
+        if (!instancingBuffer_ || !dynamicInstancing_)
+            return false;
+
+        unsigned oldSize = instancingBuffer_->GetVertexCount();
+        if (numInstances <= oldSize)
+            return true;
+
+        unsigned newSize = INSTANCING_BUFFER_DEFAULT_SIZE;
+        while (newSize < numInstances)
+            newSize <<= 1;
+
+        const PODVector<VertexElement> instancingBufferElements = CreateInstancingBufferElements(numExtraInstancingBufferElements_);
+        if (!instancingBuffer_->SetSize(newSize, instancingBufferElements, true))
+        {
+            MY3D_LOGERROR("Failed to resize instancing buffer to " + String(newSize));
+            // If failed, try to restore the old size
+            instancingBuffer_->SetSize(oldSize, instancingBufferElements, true);
+            return false;
+        }
+
+        MY3D_LOGDEBUG("Resized instancing buffer to " + String(newSize));
+        return true;
     }
 
     void Renderer::OptimizeLightByScissor(Light* light, Camera* camera)
@@ -946,135 +1215,6 @@ namespace My3D
         }
 
         pass->MarkShadersLoaded(shadersChangedFrameNumber_);
-    }
-
-    void Renderer::SetBatchShaders(Batch& batch, Technique* tech, bool allowShadows, const BatchQueue& queue)
-    {
-        Pass* pass = batch.pass_;
-
-        // Check if need to release/reload all shaders
-        if (pass->GetShadersLoadedFrameNumber() != shadersChangedFrameNumber_)
-            pass->ReleaseShaders();
-
-        Vector<SharedPtr<ShaderVariation> >& vertexShaders = queue.hasExtraDefines_ ? pass->GetVertexShaders(queue.vsExtraDefinesHash_) : pass->GetVertexShaders();
-        Vector<SharedPtr<ShaderVariation> >& pixelShaders = queue.hasExtraDefines_ ? pass->GetPixelShaders(queue.psExtraDefinesHash_) : pass->GetPixelShaders();
-
-        // Load shaders now if necessary
-        if (!vertexShaders.Size() || !pixelShaders.Size())
-            LoadPassShaders(pass, vertexShaders, pixelShaders, queue);
-
-        // Make sure shaders are loaded now
-        if (vertexShaders.Size() && pixelShaders.Size())
-        {
-            bool heightFog = batch.zone_ && batch.zone_->GetHeightFog();
-
-            // If instancing is not supported, but was requested, choose static geometry vertex shader instead
-            if (batch.geometryType_ == GEOM_INSTANCED && !GetDynamicInstancing())
-                batch.geometryType_ = GEOM_STATIC;
-
-            if (batch.geometryType_ == GEOM_STATIC_NOINSTANCING)
-                batch.geometryType_ = GEOM_STATIC;
-
-            //  Check whether is a pixel lit forward pass. If not, there is only one pixel shader
-            if (pass->GetLightingMode() == LIGHTING_PERPIXEL)
-            {
-                LightBatchQueue* lightQueue = batch.lightQueue_;
-                if (!lightQueue)
-                {
-                    // Do not log error, as it would result in a lot of spam
-                    batch.vertexShader_ = nullptr;
-                    batch.pixelShader_ = nullptr;
-                    return;
-                }
-
-                Light* light = lightQueue->light_;
-                unsigned vsi = 0;
-                unsigned psi = 0;
-                vsi = batch.geometryType_ * MAX_LIGHT_VS_VARIATIONS;
-
-                bool materialHasSpecular = batch.material_ ? batch.material_->GetSpecular() : true;
-                if (specularLighting_ && light->GetSpecularIntensity() > 0.0f && materialHasSpecular)
-                    psi += LPS_SPEC;
-                if (allowShadows && lightQueue->shadowMap_)
-                {
-                    if (light->GetShadowBias().normalOffset_ > 0.0f)
-                        vsi += LVS_SHADOWNORMALOFFSET;
-                    else
-                        vsi += LVS_SHADOW;
-                    psi += LPS_SHADOW;
-                }
-
-                switch (light->GetLightType())
-                {
-                    case LIGHT_DIRECTIONAL:
-                        vsi += LVS_DIR;
-                        break;
-
-                    case LIGHT_SPOT:
-                        psi += LPS_SPOT;
-                        vsi += LVS_SPOT;
-                        break;
-
-                    case LIGHT_POINT:
-                        if (light->GetShapeTexture())
-                            psi += LPS_POINTMASK;
-                        else
-                            psi += LPS_POINT;
-                        vsi += LVS_POINT;
-                        break;
-                }
-
-                if (heightFog)
-                    psi += MAX_LIGHT_PS_VARIATIONS;
-
-                batch.vertexShader_ = vertexShaders[vsi];
-                batch.pixelShader_ = pixelShaders[psi];
-            }
-            else
-            {
-                // Check if pass has vertex lighting support
-                if (pass->GetLightingMode() == LIGHTING_PERVERTEX)
-                {
-                    unsigned numVertexLights = 0;
-                    if (batch.lightQueue_)
-                        numVertexLights = batch.lightQueue_->vertexLights_.Size();
-
-                    unsigned vsi = batch.geometryType_ * MAX_VERTEXLIGHT_VS_VARIATIONS + numVertexLights;
-                    batch.vertexShader_ = vertexShaders[vsi];
-                }
-                else
-                {
-                    unsigned vsi = batch.geometryType_;
-                    batch.vertexShader_ = vertexShaders[vsi];
-                }
-
-                batch.pixelShader_ = pixelShaders[heightFog ? 1 : 0];
-            }
-        }
-
-        // Log error if shaders could not be assigned, but only once per technique
-        if (!batch.vertexShader_ || !batch.pixelShader_)
-        {
-            if (!shaderErrorDisplayed_.Contains(tech))
-            {
-                shaderErrorDisplayed_.Insert(tech);
-                MY3D_LOGERROR("Technique " + tech->GetName() + " has missing shaders");
-            }
-        }
-    }
-
-    RenderPath* Renderer::GetDefaultRenderPath() const
-    {
-        return defaultRenderPath_;
-    }
-
-    Technique* Renderer::GetDefaultTechnique() const
-    {
-        // Assign default when first asked if not assigned yet
-        if (!defaultTechnique_)
-            const_cast<SharedPtr<Technique>& >(defaultTechnique_) = GetSubsystem<ResourceCache>()->GetResource<Technique>("Techniques/NoTexture.xml");
-
-        return defaultTechnique_;
     }
 
     void Renderer::ReleaseMaterialShaders()

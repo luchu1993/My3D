@@ -43,6 +43,26 @@ MY3D_EVENT(E_ENDRENDERING, EndRendering)
 {
 }
 
+/// Update of a view started.
+MY3D_EVENT(E_BEGINVIEWUPDATE, BeginViewUpdate)
+{
+    MY3D_PARAM(P_VIEW, View);                    // View pointer
+    MY3D_PARAM(P_TEXTURE, Texture);              // Texture pointer
+    MY3D_PARAM(P_SURFACE, Surface);              // RenderSurface pointer
+    MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
+}
+
+/// Update of a view ended.
+MY3D_EVENT(E_ENDVIEWUPDATE, EndViewUpdate)
+{
+    MY3D_PARAM(P_VIEW, View);                    // View pointer
+    MY3D_PARAM(P_TEXTURE, Texture);              // Texture pointer
+    MY3D_PARAM(P_SURFACE, Surface);              // RenderSurface pointer
+    MY3D_PARAM(P_SCENE, Scene);                  // Scene pointer
+    MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
+}
+
 /// Render of a view started.
 MY3D_EVENT(E_BEGINVIEWRENDER, BeginViewRender)
 {

@@ -339,4 +339,13 @@ namespace My3D
         /// Use physical light values flag.
         bool usePhysicalValues_;
     };
+
+    inline bool CompareLights(Light* lhs, Light* rhs)
+    {
+        // When sorting lights, give priority to per-vertex lights, so that vertex lit base pass can be evaluated first
+        if (lhs->GetPerVertex() != rhs->GetPerVertex())
+            return lhs->GetPerVertex();
+        else
+            return lhs->GetSortValue() < rhs->GetSortValue();
+    }
 }

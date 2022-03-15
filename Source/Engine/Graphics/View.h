@@ -8,6 +8,7 @@
 #include "Container/List.h"
 #include "Graphics/Batch.h"
 #include "Graphics/Light.h"
+#include "Graphics/Zone.h"
 
 
 namespace My3D
@@ -25,7 +26,6 @@ namespace My3D
     class Technique;
     class Texture2D;
     class Viewport;
-    class Zone;
     struct RenderPathCommand;
     struct WorkItem;
 
@@ -110,6 +110,54 @@ namespace My3D
         /// Return renderer subsystem.
         Renderer* GetRenderer() const;
 
+        /// Return scene.
+        Scene* GetScene() const { return scene_; }
+
+        /// Return octree.
+        Octree* GetOctree() const { return octree_; }
+
+        /// Return viewport camera.
+        Camera* GetCamera() const { return camera_; }
+
+        /// Return culling camera. Normally same as the viewport camera.
+        Camera* GetCullCamera() const { return cullCamera_; }
+
+        /// Return information of the frame being rendered.
+        const FrameInfo& GetFrameInfo() const { return frame_; }
+
+        /// Return the rendertarget. 0 if using the backbuffer.
+        RenderSurface* GetRenderTarget() const { return renderTarget_; }
+
+        /// Return whether should draw debug geometry.
+        bool GetDrawDebug() const { return drawDebug_; }
+
+        /// Return view rectangle.
+        const IntRect& GetViewRect() const { return viewRect_; }
+
+        /// Return view dimensions.
+        const IntVector2& GetViewSize() const { return viewSize_; }
+
+        /// Return geometry objects.
+        const PODVector<Drawable*>& GetGeometries() const { return geometries_; }
+
+        /// Return occluder objects.
+        const PODVector<Drawable*>& GetOccluders() const { return occluders_; }
+
+        /// Return lights.
+        const PODVector<Light*>& GetLights() const { return lights_; }
+
+        /// Return light batch queues.
+        const Vector<LightBatchQueue>& GetLightQueues() const { return lightQueues_; }
+
+        /// Return the last used software occlusion buffer.
+        OcclusionBuffer* GetOcclusionBuffer() const { return occlusionBuffer_; }
+
+        /// Return number of occluders that were actually rendered. Occluders may be rejected if running out of triangles or if behind other occluders.
+        unsigned GetNumActiveOccluders() const { return activeOccluders_; }
+
+        /// Return the source view that was already prepared. Used when viewports specify the same culling camera.
+        View* GetSourceView() const;
+
         /// Set global (per-frame) shader parameters. Called by Batch and internally by View.
         void SetGlobalShaderParameters();
         /// Set camera-specific shader parameters. Called by Batch and internally by View.
@@ -126,8 +174,86 @@ namespace My3D
         Texture* FindNamedTexture(const String& name, bool isRenderTarget, bool isVolumeMap = false);
 
     private:
+        /// Query the octree for drawable objects.
+        void GetDrawables();
+        /// Construct batches from the drawable objects.
+        void GetBatches();
+        /// Get lit geometries and shadowcasters for visible lights.
+        void ProcessLights();
+        /// Get batches from lit geometries and shadowcasters.
+        void GetLightBatches();
+        /// Get unlit batches.
+        void GetBaseBatches();
+        /// Update geometries and sort batches.
+        void UpdateGeometries();
+        /// Get pixel lit batches for a certain light and drawable.
+        void GetLitBatches(Drawable* drawable, LightBatchQueue& lightQueue, BatchQueue* alphaQueue);
+        /// Execute render commands.
+        void ExecuteRenderPathCommands();
+        /// Set rendertargets for current render command.
+        void SetRenderTargets(RenderPathCommand& command);
+        /// Set textures for current render command. Return whether depth write is allowed (depth-stencil not bound as a texture).
+        bool SetTextures(RenderPathCommand& command);
+        /// Perform a quad rendering command.
+        void RenderQuad(RenderPathCommand& command);
+        /// Check if a command is enabled and has content to render. To be called only after render update has completed for the frame.
+        bool IsNecessary(const RenderPathCommand& command);
+        /// Check if a command reads the destination render target.
+        bool CheckViewportRead(const RenderPathCommand& command);
+        /// Check if a command writes into the destination render target.
+        bool CheckViewportWrite(const RenderPathCommand& command);
+        /// Check whether a command should use pingponging instead of resolve from destination render target to viewport texture.
+        bool CheckPingpong(unsigned index);
+        /// Allocate needed screen buffers.
+        void AllocateScreenBuffers();
+        /// Blit the viewport from one surface to another.
+        void BlitFramebuffer(Texture* source, RenderSurface* destination, bool depthWrite);
+        /// Query for occluders as seen from a camera.
+        void UpdateOccluders(PODVector<Drawable*>& occluders, Camera* camera);
+        /// Draw occluders to occlusion buffer.
+        void DrawOccluders(OcclusionBuffer* buffer, const PODVector<Drawable*>& occluders);
+        /// Query for lit geometries and shadow casters for a light.
+        void ProcessLight(LightQueryResult& query, unsigned threadIndex);
+        /// Process shadow casters' visibilities and build their combined view- or projection-space bounding box.
+        void ProcessShadowCasters(LightQueryResult& query, const PODVector<Drawable*>& drawables, unsigned splitIndex);
+        /// Set up initial shadow camera view(s).
+        void SetupShadowCameras(LightQueryResult& query);
+        /// Set up a directional light shadow camera.
+        void SetupDirLightShadowCamera(Camera* shadowCamera, Light* light, float nearSplit, float farSplit);
+        /// Finalize shadow camera view after shadow casters and the shadow map are known.
+        void FinalizeShadowCamera(Camera* shadowCamera, Light* light, const IntRect& shadowViewport, const BoundingBox& shadowCasterBox);
+        /// Quantize a directional light shadow camera view to eliminate swimming.
+        void QuantizeDirLightShadowCamera(Camera* shadowCamera, Light* light, const IntRect& shadowViewport, const BoundingBox& viewBox);
+        /// Check visibility of one shadow caster.
+        bool IsShadowCasterVisible(Drawable* drawable, BoundingBox lightViewBox, Camera* shadowCamera, const Matrix3x4& lightView,
+                                   const Frustum& lightViewFrustum, const BoundingBox& lightViewFrustumBox);
+        /// Return the viewport for a shadow map split.
+        IntRect GetShadowMapViewport(Light* light, int splitIndex, Texture2D* shadowMap);
+        /// Find and set a new zone for a drawable when it has moved.
+        void FindZone(Drawable* drawable);
+        /// Return material technique, considering the drawable's LOD distance.
+        Technique* GetTechnique(Drawable* drawable, Material* material);
+        /// Check if material should render an auxiliary view (if it has a camera attached).
+        void CheckMaterialForAuxView(Material* material);
+        /// Set shader defines for a batch queue if used.
+        void SetQueueShaderDefines(BatchQueue& queue, const RenderPathCommand& command);
+        /// Choose shaders for a batch and add it to queue.
+        void AddBatchToQueue(BatchQueue& queue, Batch& batch, Technique* tech, bool allowInstancing = true, bool allowShadows = true);
+        /// Prepare instancing buffer by filling it with all instance transforms.
+        void PrepareInstancingBuffer();
+        /// Set up a light volume rendering batch.
+        void SetupLightVolumeBatch(Batch& batch);
+        /// Check whether a light queue needs shadow rendering.
+        bool NeedRenderShadowMap(const LightBatchQueue& queue);
+        /// Render a shadow map.
+        void RenderShadowMap(const LightBatchQueue& queue);
+        /// Return the proper depth-stencil surface to use for a rendertarget.
+        RenderSurface* GetDepthStencil(RenderSurface* renderTarget);
+        /// Helper function to get the render surface from a texture. 2D textures will always return the first face only.
+        RenderSurface* GetRenderSurfaceFromTexture(Texture* texture, CubeMapFace face = FACE_POSITIVE_X);
         /// Send a view update or render related event through the Renderer subsystem. The parameters are the same for all of them.
         void SendViewEvent(StringHash eventType);
+
         /// Return the drawable's zone, or camera zone if it has override mode enabled.
         Zone* GetZone(Drawable* drawable)
         {
@@ -135,6 +261,27 @@ namespace My3D
                 return cameraZone_;
             Zone* drawableZone = drawable->GetZone();
             return drawableZone ? drawableZone : cameraZone_;
+        }
+
+        /// Return the drawable's light mask, considering also its zone.
+        unsigned GetLightMask(Drawable* drawable)
+        {
+            return drawable->GetLightMask() & GetZone(drawable)->GetLightMask();
+        }
+
+        /// Return the drawable's shadow mask, considering also its zone.
+        unsigned GetShadowMask(Drawable* drawable)
+        {
+            return drawable->GetShadowMask() & GetZone(drawable)->GetShadowMask();
+        }
+
+        /// Return hash code for a vertex light queue.
+        unsigned long long GetVertexLightQueueHash(const PODVector<Light*>& vertexLights)
+        {
+            unsigned long long hash = 0;
+            for (PODVector<Light*>::ConstIterator i = vertexLights.Begin(); i != vertexLights.End(); ++i)
+                hash += (unsigned long long)(*i);
+            return hash;
         }
 
         /// Graphics subsystem.
