@@ -248,6 +248,104 @@ namespace My3D
 
     Renderer::~Renderer() = default;
 
+    void Renderer::SetNumViewports(unsigned num)
+    {
+        viewports_.Resize(num);
+    }
+
+    void Renderer::SetViewport(unsigned index, Viewport* viewport)
+    {
+        if (index >= viewports_.Size())
+            viewports_.Resize(index + 1);
+
+        viewports_[index] = viewport;
+    }
+
+    void Renderer::SetDefaultRenderPath(RenderPath* renderPath)
+    {
+        if (renderPath)
+            defaultRenderPath_ = renderPath;
+    }
+
+    void Renderer::SetDefaultRenderPath(XMLFile* xmlFile)
+    {
+        SharedPtr<RenderPath> newRenderPath(new RenderPath());
+        if (newRenderPath->Load(xmlFile))
+            defaultRenderPath_ = newRenderPath;
+    }
+
+    void Renderer::SetDefaultTechnique(Technique* technique)
+    {
+        defaultTechnique_ = technique;
+    }
+
+    void Renderer::SetHDRRendering(bool enable)
+    {
+        hdrRendering_ = enable;
+    }
+
+    void Renderer::SetSpecularLighting(bool enable)
+    {
+        specularLighting_ = enable;
+    }
+
+    void Renderer::SetTextureAnisotropy(int level)
+    {
+        textureAnisotropy_ = Max(level, 1);
+    }
+
+    void Renderer::SetTextureFilterMode(TextureFilterMode mode)
+    {
+        textureFilterMode_ = mode;
+    }
+
+    void Renderer::SetTextureQuality(MaterialQuality quality)
+    {
+        quality = Clamp(quality, QUALITY_LOW, QUALITY_HIGH);
+
+        if (quality != textureQuality_)
+        {
+            textureQuality_ = quality;
+            ReloadTextures();
+        }
+    }
+
+    void Renderer::SetMaterialQuality(MaterialQuality quality)
+    {
+        quality = Clamp(quality, QUALITY_LOW, QUALITY_MAX);
+
+        if (quality != materialQuality_)
+        {
+            materialQuality_ = quality;
+            shadersDirty_ = true;
+            // Reallocate views to not store eg. pass information that might be unnecessary on the new material quality level
+            resetViews_ = true;
+        }
+    }
+
+    void Renderer::SetDrawShadows(bool enable)
+    {
+        if (!graphics_ || !graphics_->GetShadowMapFormat())
+            return;
+
+        drawShadows_ = enable;
+        if (!drawShadows_)
+            ResetShadowMaps();
+    }
+
+    void Renderer::SetShadowMapSize(int size)
+    {
+        if (!graphics_)
+            return;
+
+        size = NextPowerOfTwo((unsigned)Max(size, SHADOW_MIN_PIXELS));
+        if (size != shadowMapSize_)
+        {
+            shadowMapSize_ = size;
+            ResetShadowMaps();
+        }
+    }
+
     void Renderer::SetShadowQuality(ShadowQuality quality)
     {
         if (!graphics_)
@@ -1002,6 +1100,119 @@ namespace My3D
         cache->GetResources(textures, TextureCube::GetTypeStatic());
         for (unsigned i = 0; i < textures.Size(); ++i)
             cache->ReloadResource(textures[i]);
+    }
+
+    void Renderer::CreateGeometries()
+    {
+        SharedPtr<VertexBuffer> dlvb(new VertexBuffer(context_));
+        dlvb->SetShadowed(true);
+        dlvb->SetSize(4, MASK_POSITION);
+        dlvb->SetData(dirLightIndexData);
+
+        SharedPtr<IndexBuffer> dlib(new IndexBuffer(context_));
+        dlib->SetShadowed(true);
+        dlib->SetSize(6, false);
+        dlib->SetData(dirLightIndexData);
+
+        dirLightGeometry_ = new Geometry(context_);
+        dirLightGeometry_->SetVertexBuffer(0, dlvb);
+        dirLightGeometry_->SetIndexBuffer(dlib);
+        dirLightGeometry_->SetDrawRange(TRIANGLE_LIST, 0, dlib->GetIndexCount());
+
+        SharedPtr<VertexBuffer> slvb(new VertexBuffer(context_));
+        slvb->SetShadowed(true);
+        slvb->SetSize(8, MASK_POSITION);
+        slvb->SetData(spotLightVertexData);
+
+        SharedPtr<IndexBuffer> slib(new IndexBuffer(context_));
+        slib->SetShadowed(true);
+        slib->SetSize(36, false);
+        slib->SetData(spotLightIndexData);
+
+        spotLightGeometry_ = new Geometry(context_);
+        spotLightGeometry_->SetVertexBuffer(0, slvb);
+        spotLightGeometry_->SetIndexBuffer(slib);
+        spotLightGeometry_->SetDrawRange(TRIANGLE_LIST, 0, slib->GetIndexCount());
+
+        SharedPtr<VertexBuffer> plvb(new VertexBuffer(context_));
+        plvb->SetShadowed(true);
+        plvb->SetSize(24, MASK_POSITION);
+        plvb->SetData(pointLightVertexData);
+
+        SharedPtr<IndexBuffer> plib(new IndexBuffer(context_));
+        plib->SetShadowed(true);
+        plib->SetSize(132, false);
+        plib->SetData(pointLightIndexData);
+
+        pointLightGeometry_ = new Geometry(context_);
+        pointLightGeometry_->SetVertexBuffer(0, plvb);
+        pointLightGeometry_->SetIndexBuffer(plib);
+        pointLightGeometry_->SetDrawRange(TRIANGLE_LIST, 0, plib->GetIndexCount());
+
+#if !defined(MY3D_OPENGL)
+        if (graphics_->GetShadowMapFormat())
+        {
+            faceSelectCubeMap_ = new TextureCube(context_);
+            faceSelectCubeMap_->SetNumLevels(1);
+            faceSelectCubeMap_->SetSize(1, graphics_->GetRGBAFormat());
+            faceSelectCubeMap_->SetFilterMode(FILTER_NEAREST);
+
+            indirectionCubeMap_ = new TextureCube(context_);
+            indirectionCubeMap_->SetNumLevels(1);
+            indirectionCubeMap_->SetSize(256, graphics_->GetRGBAFormat());
+            indirectionCubeMap_->SetFilterMode(FILTER_BILINEAR);
+            indirectionCubeMap_->SetAddressMode(COORD_U, ADDRESS_CLAMP);
+            indirectionCubeMap_->SetAddressMode(COORD_V, ADDRESS_CLAMP);
+            indirectionCubeMap_->SetAddressMode(COORD_W, ADDRESS_CLAMP);
+
+            SetIndirectionTextureData();
+        }
+#endif
+    }
+
+    void Renderer::SetIndirectionTextureData()
+    {
+        unsigned char data[256 * 256 * 4];
+
+        for (unsigned i = 0; i < MAX_CUBEMAP_FACES; ++i)
+        {
+            unsigned axis = i / 2;
+            data[0] = (unsigned char)((axis == 0) ? 255 : 0);
+            data[1] = (unsigned char)((axis == 1) ? 255 : 0);
+            data[2] = (unsigned char)((axis == 2) ? 255 : 0);
+            data[3] = 0;
+            faceSelectCubeMap_->SetData((CubeMapFace)i, 0, 0, 0, 1, 1, data);
+        }
+
+        for (unsigned i = 0; i < MAX_CUBEMAP_FACES; ++i)
+        {
+            auto faceX = (unsigned char)((i & 1u) * 255);
+            auto faceY = (unsigned char)((i / 2) * 255 / 3);
+            unsigned char* dest = data;
+            for (unsigned y = 0; y < 256; ++y)
+            {
+                for (unsigned x = 0; x < 256; ++x)
+                {
+                #ifdef MY3D_OPENGL
+                    dest[0] = (unsigned char)x;
+                    dest[1] = (unsigned char)(255 - y);
+                    dest[2] = faceX;
+                    dest[3] = (unsigned char)(255 * 2 / 3 - faceY);
+                #else
+                    dest[0] = (unsigned char)x;
+                    dest[1] = (unsigned char)y;
+                    dest[2] = faceX;
+                    dest[3] = faceY;
+                #endif
+                    dest += 4;
+                }
+            }
+
+            indirectionCubeMap_->SetData((CubeMapFace)i, 0, 0, 0, 256, 256, data);
+        }
+
+        faceSelectCubeMap_->ClearDataLost();
+        indirectionCubeMap_->ClearDataLost();
     }
 
     void Renderer::HandleScreenMode(StringHash eventType, VariantMap& eventData)

@@ -31,6 +31,8 @@ namespace My3D
 
         /// Enable shadowing in CPU memory. Shadowing is forced on if the graphics subsystem does not exist
         void SetShadowed(bool enable);
+        /// Set size and vertex elements and dynamic mode using legacy element bitmask. Previous data will be lost.
+        bool SetSize(unsigned vertexCount, unsigned elementMask, bool dynamic = false);
         /// Set size, vertex elements and dynamic mode.
         bool SetSize(unsigned vertexCount, const PODVector<VertexElement>& elements, bool dynamic = false);
         /// Set all data in the buffer
@@ -73,6 +75,8 @@ namespace My3D
         unsigned long long GetBufferHash(unsigned streamIndex) { return elementHash_ << (streamIndex * 16); }
         /// Return element with specified type and semantic from a vertex element list
         static const VertexElement* GetElement(const PODVector<VertexElement>& elements, VertexElementType type, VertexElementSemantic semantic, unsigned char index = 0);
+        /// Return a vertex element list from a legacy element bitmask.
+        static PODVector<VertexElement> GetElements(unsigned elementMask);
         /// Return whether element list has a specified element type and semantic
         static bool HasElement(const PODVector<VertexElement>& elements, VertexElementType type, VertexElementSemantic semantic, unsigned char index = 0);
         /// Return element offset for specified type and semantic form a vertex element list

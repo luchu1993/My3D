@@ -56,6 +56,19 @@ namespace My3D
         return nullptr;
     }
 
+    PODVector<VertexElement> VertexBuffer::GetElements(unsigned elementMask)
+    {
+        PODVector<VertexElement> ret;
+
+        for (unsigned i = 0; i < MAX_LEGACY_VERTEX_ELEMENTS; ++i)
+        {
+            if (elementMask & (1u << i))
+                ret.Push(LEGACY_VERTEXELEMENTS[i]);
+        }
+
+        return ret;
+    }
+
     bool VertexBuffer::HasElement(const PODVector<VertexElement> &elements, VertexElementType type, VertexElementSemantic semantic, unsigned char index)
     {
         return GetElement(elements, type, semantic, index) != nullptr;
@@ -118,6 +131,11 @@ namespace My3D
 
             shadowed_ = true;
         }
+    }
+
+    bool VertexBuffer::SetSize(unsigned int vertexCount, unsigned int elementMask, bool dynamic)
+    {
+        return SetSize(vertexCount, GetElements(elementMask), dynamic);
     }
 
     bool VertexBuffer::SetSize(unsigned int vertexCount, const PODVector<VertexElement> &elements, bool dynamic)

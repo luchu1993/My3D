@@ -239,6 +239,27 @@ namespace My3D
         MAX_VERTEX_ELEMENT_TYPES
     };
 
+    /// Hardcoded legacy vertex elements.
+    enum LegacyVertexElement
+    {
+        ELEMENT_POSITION = 0,
+        ELEMENT_NORMAL,
+        ELEMENT_COLOR,
+        ELEMENT_TEXCOORD1,
+        ELEMENT_TEXCOORD2,
+        ELEMENT_CUBETEXCOORD1,
+        ELEMENT_CUBETEXCOORD2,
+        ELEMENT_TANGENT,
+        ELEMENT_BLENDWEIGHTS,
+        ELEMENT_BLENDINDICES,
+        ELEMENT_INSTANCEMATRIX1,
+        ELEMENT_INSTANCEMATRIX2,
+        ELEMENT_INSTANCEMATRIX3,
+        // Custom 32-bit integer object index. Due to API limitations, not supported on D3D9
+        ELEMENT_OBJECTINDEX,
+        MAX_LEGACY_VERTEX_ELEMENTS
+    };
+
     /// Arbitrary vertex declaration element semantics.
     enum VertexElementSemantic
     {
@@ -381,6 +402,30 @@ namespace My3D
 
     /// Sizes of vertex element types.
     extern MY3D_API const unsigned ELEMENT_TYPESIZES[];
+
+    /// Vertex element definitions for the legacy elements.
+    extern MY3D_API const VertexElement LEGACY_VERTEXELEMENTS[];
+
+    // Legacy vertex element bitmasks.
+    enum VertexMask : unsigned
+    {
+        MASK_NONE = 0x0,
+        MASK_POSITION = 0x1,
+        MASK_NORMAL = 0x2,
+        MASK_COLOR = 0x4,
+        MASK_TEXCOORD1 = 0x8,
+        MASK_TEXCOORD2 = 0x10,
+        MASK_CUBETEXCOORD1 = 0x20,
+        MASK_CUBETEXCOORD2 = 0x40,
+        MASK_TANGENT = 0x80,
+        MASK_BLENDWEIGHTS = 0x100,
+        MASK_BLENDINDICES = 0x200,
+        MASK_INSTANCEMATRIX1 = 0x400,
+        MASK_INSTANCEMATRIX2 = 0x800,
+        MASK_INSTANCEMATRIX3 = 0x1000,
+        MASK_OBJECTINDEX = 0x2000,
+    };
+    MY3D_FLAGSET(VertexMask, VertexMaskFlags);
 
     static const int MAX_RENDERTARGETS = 4;
     static const int MAX_VERTEX_STREAMS = 4;

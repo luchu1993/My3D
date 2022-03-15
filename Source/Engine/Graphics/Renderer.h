@@ -430,7 +430,7 @@ namespace My3D
         /// Reusable scene nodes with shadow camera components.
         Vector<SharedPtr<Node> > shadowCameraNodes_;
         /// Shadow maps by resolution.
-        HashMap<int, Vector<SharedPtr<Texture2D> > > shadowMaps_;
+        HashMap<int, Vector<SharedPtr<Texture2D>>> shadowMaps_;
         /// Shadow map dummy color buffers by resolution.
         HashMap<int, SharedPtr<Texture2D> > colorShadowMaps_;
         /// Shadow map allocations by resolution.
