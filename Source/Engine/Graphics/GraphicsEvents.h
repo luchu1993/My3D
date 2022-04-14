@@ -103,4 +103,9 @@ MY3D_EVENT(E_ENDVIEWRENDER, EndViewRender)
     MY3D_PARAM(P_CAMERA, Camera);                // Camera pointer
 }
 
+/// Render of all views is finished for the frame.
+MY3D_EVENT(E_ENDALLVIEWSRENDER, EndAllViewsRender)
+{
+}
+
 }

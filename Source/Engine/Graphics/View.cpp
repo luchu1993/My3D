@@ -5,6 +5,7 @@
 #include "Core/WorkQueue.h"
 #include "Container/Sort.h"
 #include "Graphics/Camera.h"
+#include "Graphics/DebugRenderer.h"
 #include "Graphics/Geometry.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsEvents.h"
@@ -471,6 +472,107 @@ namespace My3D
         renderer_->StorePreparedView(this, cullCamera_);
 
         SendViewEvent(E_ENDVIEWUPDATE);
+    }
+
+    void View::Render()
+    {
+        SendViewEvent(E_BEGINVIEWRENDER);
+
+        if (hasScenePasses_ && (!octree_ || !camera_))
+        {
+            SendViewEvent(E_ENDVIEWRENDER);
+            return;
+        }
+
+        UpdateGeometries();
+
+        // Allocate screen buffers as necessary
+        AllocateScreenBuffers();
+        SendViewEvent(E_VIEWBUFFERSREADY);
+
+        // Forget parameter sources from the previous view
+        graphics_->ClearParameterSources();
+
+        if (renderer_->GetDynamicInstancing() && graphics_->GetInstancingSupport())
+            PrepareInstancingBuffer();
+
+        // It is possible, though not recommended, that the same camera is used for multiple main views. Set automatic aspect ratio
+        // to ensure correct projection will be used
+        if (camera_ && camera_->GetAutoAspectRatio())
+            camera_->SetAspectRatioInternal((float)(viewSize_.x_) / (float)(viewSize_.y_));
+
+#ifdef MY3D_OPENGL
+        if (renderTarget_)
+        {
+            // On OpenGL, flip the projection if rendering to a texture so that the texture can be addressed in the same way
+            // as a render texture produced on Direct3D9
+            // Note that the state of the FlipVertical mode is toggled here rather than enabled
+            // The reason for this is that we want the mode to be the opposite of what the user has currently set for the
+            // camera when rendering to texture for OpenGL
+            // This mode is returned to the original state by toggling it again below, after the render
+            if (camera_)
+                camera_->SetFlipVertical(!camera_->GetFlipVertical());
+        }
+#endif
+
+        // Render
+        ExecuteRenderPathCommands();
+
+        // Reset state after commands
+        graphics_->SetFillMode(FILL_SOLID);
+        graphics_->SetLineAntiAlias(false);
+        graphics_->SetClipPlane(false);
+        graphics_->SetColorWrite(true);
+        graphics_->SetDepthBias(0.0f, 0.0f);
+        graphics_->SetScissorTest(false);
+        graphics_->SetStencilTest(false);
+
+        // Draw the associated debug geometry now if enabled
+        if (drawDebug_ && octree_ && camera_)
+        {
+            auto* debug = octree_->GetComponent<DebugRenderer>();
+            if (debug && debug->IsEnabledEffective() && debug->HasContent())
+            {
+                // If used resolve from backbuffer, blit first to the backbuffer to ensure correct depth buffer on OpenGL
+                // Otherwise use the last rendertarget and blit after debug geometry
+                if (usedResolve_ && currentRenderTarget_ != renderTarget_)
+                {
+                    BlitFramebuffer(currentRenderTarget_->GetParentTexture(), renderTarget_, false);
+                    currentRenderTarget_ = renderTarget_;
+                    lastCustomDepthSurface_ = nullptr;
+                }
+
+                graphics_->SetRenderTarget(0, currentRenderTarget_);
+                for (unsigned i = 1; i < MAX_RENDERTARGETS; ++i)
+                    graphics_->SetRenderTarget(i, (RenderSurface*)nullptr);
+
+                // If a custom depth surface was used, use it also for debug rendering
+                graphics_->SetDepthStencil(lastCustomDepthSurface_ ? lastCustomDepthSurface_ : GetDepthStencil(currentRenderTarget_));
+
+                IntVector2 rtSizeNow = graphics_->GetRenderTargetDimensions();
+                IntRect viewport = (currentRenderTarget_ == renderTarget_) ? viewRect_ : IntRect(0, 0, rtSizeNow.x_,
+                                                                                                 rtSizeNow.y_);
+                graphics_->SetViewport(viewport);
+
+                debug->SetView(camera_);
+                debug->Render();
+            }
+        }
+
+#ifdef MY3D_OPENGL
+        if (renderTarget_)
+        {
+            // Restores original setting of FlipVertical when flipped by code above.
+            if (camera_)
+                camera_->SetFlipVertical(!camera_->GetFlipVertical());
+        }
+#endif
+        // Run framebuffer blitting if necessary. If scene was resolved from backbuffer, do not touch depth
+        // (backbuffer should contain proper depth already)
+        if (currentRenderTarget_ != renderTarget_)
+            BlitFramebuffer(currentRenderTarget_->GetParentTexture(), renderTarget_, !usedResolve_);
+
+        SendViewEvent(E_ENDVIEWRENDER);
     }
 
     Graphics* View::GetGraphics() const

@@ -62,7 +62,7 @@ namespace My3D
         Allocator(const Allocator<T>& rhs) = delete;
         /// Prevent assigment
         Allocator<T>& operator=(const Allocator<T>& rhs) = delete;
-        /// Reverse and default-construct an object
+        /// Reserve and default-construct an object
         T* Reverse()
         {
             if (!allocator_)

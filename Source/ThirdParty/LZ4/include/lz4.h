@@ -183,7 +183,7 @@ LZ4LIB_API int LZ4_compress_fast_extState (void* state, const char* source, char
 
 /*!
 LZ4_compress_destSize() :
-    Reverse the logic, by compressing as much data as possible from 'source' buffer
+    Reserve the logic, by compressing as much data as possible from 'source' buffer
     into already allocated buffer 'dest' of size 'targetDestSize'.
     This function either compresses the entire 'source' content into 'dest' if it's large enough,
     or fill 'dest' buffer completely with as much data as possible from 'source'.

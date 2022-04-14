@@ -4,6 +4,7 @@
 
 #include "Core/CoreEvents.h"
 #include "Graphics/Camera.h"
+#include "Graphics/DebugRenderer.h"
 #include "Graphics/Geometry.h"
 #include "Graphics/Graphics.h"
 #include "Graphics/GraphicsEvents.h"
@@ -964,7 +965,171 @@ namespace My3D
 
     void Renderer::Update(float timeStep)
     {
+        views_.Clear();
+        preparedViews_.Clear();
 
+        // If device lost, do not perform update. This is because any dynamic vertex/index buffer updates happen already here,
+        // and if the device is lost, the updates queue up, causing memory use to rise constantly
+        if (!graphics_ || !graphics_->IsInitialized() || graphics_->IsDeviceLost())
+            return;
+
+        // Set up the frameinfo structure for this frame
+        frame_.frameNumber_ = GetSubsystem<Time>()->GetFrameNumber();
+        frame_.timeStep_ = timeStep;
+        frame_.camera_ = nullptr;
+        numShadowCameras_ = 0;
+        numOcclusionBuffers_ = 0;
+        updatedOctrees_.Clear();
+
+        // Reload shaders now if needed
+        if (shadersDirty_)
+            LoadShaders();
+
+        // Queue update of the main viewports. Use reverse order, as rendering order is also reverse
+        // to render auxiliary views before dependent main views
+        for (unsigned i = viewports_.Size() - 1; i < viewports_.Size(); --i)
+            QueueViewport(nullptr, viewports_[i]);
+
+        // Update main viewports. This may queue further views
+        unsigned numMainViewports = queuedViewports_.Size();
+        for (unsigned i = 0; i < numMainViewports; ++i)
+            UpdateQueuedViewport(i);
+
+        // Gather queued & autoupdated render surfaces
+        SendEvent(E_RENDERSURFACEUPDATE);
+
+        // Update viewports that were added as result of the event above
+        for (unsigned i = numMainViewports; i < queuedViewports_.Size(); ++i)
+            UpdateQueuedViewport(i);
+
+        queuedViewports_.Clear();
+        resetViews_ = false;
+    }
+
+    void Renderer::Render()
+    {
+        // Engine does not render when window is closed or device is lost
+        assert(graphics_ && graphics_->IsInitialized() && !graphics_->IsDeviceLost());
+
+        // If the indirection textures have lost content (OpenGL mode only), restore them now
+        if (faceSelectCubeMap_ && faceSelectCubeMap_->IsDataLost())
+            SetIndirectionTextureData();
+
+        graphics_->SetDefaultTextureFilterMode(textureFilterMode_);
+        graphics_->SetDefaultTextureAnisotropy((unsigned)textureAnisotropy_);
+
+        // If no views that render to the backbuffer, clear the screen so that e.g. the UI is not rendered on top of previous frame
+        bool hasBackbufferViews = false;
+        for (unsigned i = 0; i < views_.Size(); ++i)
+        {
+            if (!views_[i]->GetRenderTarget())
+            {
+                hasBackbufferViews = true;
+                break;
+            }
+        }
+        if (!hasBackbufferViews)
+        {
+            graphics_->SetBlendMode(BLEND_REPLACE);
+            graphics_->SetColorWrite(true);
+            graphics_->SetDepthWrite(true);
+            graphics_->SetScissorTest(false);
+            graphics_->SetStencilTest(false);
+            graphics_->ResetRenderTargets();
+            graphics_->Clear(CLEAR_COLOR | CLEAR_DEPTH | CLEAR_STENCIL, defaultZone_->GetFogColor());
+        }
+
+        // Render views from last to first. Each main (backbuffer) view is rendered after the auxiliary views it depends on
+        for (unsigned i = views_.Size() - 1; i < views_.Size(); --i)
+        {
+            if (!views_[i])
+                continue;
+
+            // Screen buffers can be reused between views, as each is rendered completely
+            PrepareViewRender();
+            views_[i]->Render();
+        }
+
+        // Copy the number of batches & primitives from Graphics so that we can account for 3D geometry only
+        numPrimitives_ = graphics_->GetNumPrimitives();
+        numBatches_ = graphics_->GetNumBatches();
+
+        // Remove unused occlusion buffers and renderbuffers
+        RemoveUnusedBuffers();
+
+        // All views done, custom rendering can now be done before UI
+        SendEvent(E_ENDALLVIEWSRENDER);
+
+    }
+
+    void Renderer::PrepareViewRender()
+    {
+        ResetScreenBufferAllocations();
+        lightScissorCache_.Clear();
+        lightStencilValue_ = 1;
+    }
+
+    void Renderer::UpdateQueuedViewport(unsigned index)
+    {
+        WeakPtr<RenderSurface>& renderTarget = queuedViewports_[index].first_;
+        WeakPtr<Viewport>& viewport = queuedViewports_[index].second_;
+
+        // Null pointer means backbuffer view. Differentiate between that and an expired rendersurface
+        if ((renderTarget.NotNull() && renderTarget.Expired()) || viewport.Expired())
+            return;
+
+        // (Re)allocate the view structure if necessary
+        if (!viewport->GetView() || resetViews_)
+            viewport->AllocateView();
+
+        View* view = viewport->GetView();
+        assert(view);
+        // Check if view can be defined successfully (has either valid scene, camera and octree, or no scene passes)
+        if (!view->Define(renderTarget, viewport))
+            return;
+
+        views_.Push(WeakPtr<View>(view));
+
+        const IntRect& viewRect = viewport->GetRect();
+        Scene* scene = viewport->GetScene();
+        if (!scene)
+            return;
+
+        auto* octree = scene->GetComponent<Octree>();
+
+        // Update octree (perform early update for drawables which need that, and reinsert moved drawables).
+        // However, if the same scene is viewed from multiple cameras, update the octree only once
+        if (!updatedOctrees_.Contains(octree))
+        {
+            frame_.camera_ = viewport->GetCamera();
+            frame_.viewSize_ = viewRect.Size();
+            if (frame_.viewSize_ == IntVector2::ZERO)
+                frame_.viewSize_ = IntVector2(graphics_->GetWidth(), graphics_->GetHeight());
+            octree->Update(frame_);
+            updatedOctrees_.Insert(octree);
+
+            // Set also the view for the debug renderer already here, so that it can use culling
+            /// \todo May result in incorrect debug geometry culling if the same scene is drawn from multiple viewports
+            auto* debug = scene->GetComponent<DebugRenderer>();
+            if (debug && viewport->GetDrawDebug())
+                debug->SetView(viewport->GetCamera());
+        }
+
+        // Update view. This may queue further views. View will send update begin/end events once its state is set
+        ResetShadowMapAllocations(); // Each view can reuse the same shadow maps
+        view->Update(frame_);
+    }
+
+    void Renderer::ResetShadowMapAllocations()
+    {
+        for (HashMap<int, PODVector<Light*> >::Iterator i = shadowMapAllocations_.Begin(); i != shadowMapAllocations_.End(); ++i)
+            i->second_.Clear();
+    }
+
+    void Renderer::ResetScreenBufferAllocations()
+    {
+        for (HashMap<unsigned long long, unsigned>::Iterator i = screenBufferAllocations_.Begin(); i != screenBufferAllocations_.End(); ++i)
+            i->second_ = 0;
     }
 
     Texture* Renderer::GetScreenBuffer(int width, int height, unsigned format, int multiSample, bool autoResolve, bool cubemap, bool filtered, bool srgb,

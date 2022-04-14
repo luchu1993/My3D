@@ -847,7 +847,7 @@ public:
             At(i) = value;
     }
     /// Set new capacity
-    void Reverse(unsigned newCapacity)
+    void Reserve(unsigned newCapacity)
     {
         if (newCapacity < size_)
             newCapacity = size_;
@@ -868,7 +868,7 @@ public:
         }
     }
     /// Reallocate so that no extra memeoty is used
-    void Compact() { Reverse(size_); }
+    void Compact() { Reserve(size_); }
     /// Return iterator to value, or to the end if not found
     Iterator Find(const T& value)
     {
