@@ -950,6 +950,165 @@ namespace My3D
         return dirLightGeometry_;
     }
 
+    Texture2D* Renderer::GetShadowMap(Light* light, Camera* camera, unsigned viewWidth, unsigned viewHeight)
+    {
+        LightType type = light->GetLightType();
+        const FocusParameters& parameters = light->GetShadowFocus();
+        float size = (float)shadowMapSize_ * light->GetShadowResolution();
+        // Automatically reduce shadow map size when far away
+        if (parameters.autoSize_ && type != LIGHT_DIRECTIONAL)
+        {
+            const Matrix3x4& view = camera->GetView();
+            const Matrix4& projection = camera->GetProjection();
+            BoundingBox lightBox;
+            float lightPixels;
+
+            if (type == LIGHT_POINT)
+            {
+                // Calculate point light pixel size from the projection of its diagonal
+                Vector3 center = view * light->GetNode()->GetWorldPosition();
+                float extent = 0.58f * light->GetRange();
+                lightBox.Define(center + Vector3(extent, extent, extent), center - Vector3(extent, extent, extent));
+            }
+            else
+            {
+                // Calculate spot light pixel size from the projection of its frustum far vertices
+                Frustum lightFrustum = light->GetViewSpaceFrustum(view);
+                lightBox.Define(&lightFrustum.vertices_[4], 4);
+            }
+
+            Vector2 projectionSize = lightBox.Projected(projection).Size();
+            lightPixels = Max(0.5f * (float)viewWidth * projectionSize.x_, 0.5f * (float)viewHeight * projectionSize.y_);
+
+            // Clamp pixel amount to a sufficient minimum to avoid self-shadowing artifacts due to loss of precision
+            if (lightPixels < SHADOW_MIN_PIXELS)
+                lightPixels = SHADOW_MIN_PIXELS;
+
+            size = Min(size, lightPixels);
+        }
+
+        /// \todo Allow to specify maximum shadow maps per resolution, as smaller shadow maps take less memory
+        int width = NextPowerOfTwo((unsigned)size);
+        int height = width;
+
+        // Adjust the size for directional or point light shadow map atlases
+        if (type == LIGHT_DIRECTIONAL)
+        {
+            auto numSplits = (unsigned)light->GetNumShadowSplits();
+            if (numSplits > 1)
+                width *= 2;
+            if (numSplits > 2)
+                height *= 2;
+        }
+        else if (type == LIGHT_POINT)
+        {
+            width *= 2;
+            height *= 3;
+        }
+
+        int searchKey = width << 16u | height;
+        if (shadowMaps_.Contains(searchKey))
+        {
+            // If shadow maps are reused, always return the first
+            if (reuseShadowMaps_)
+                return shadowMaps_[searchKey][0];
+            else
+            {
+                // If not reused, check allocation count and return existing shadow map if possible
+                unsigned allocated = shadowMapAllocations_[searchKey].Size();
+                if (allocated < shadowMaps_[searchKey].Size())
+                {
+                    shadowMapAllocations_[searchKey].Push(light);
+                    return shadowMaps_[searchKey][allocated];
+                }
+                else if ((int)allocated >= maxShadowMaps_)
+                    return nullptr;
+            }
+        }
+
+        // Find format and usage of the shadow map
+        unsigned shadowMapFormat = 0;
+        TextureUsage shadowMapUsage = TEXTURE_DEPTHSTENCIL;
+        int multiSample = 1;
+
+        switch (shadowQuality_)
+        {
+            case SHADOWQUALITY_SIMPLE_16BIT:
+            case SHADOWQUALITY_PCF_16BIT:
+                shadowMapFormat = graphics_->GetShadowMapFormat();
+                break;
+
+            case SHADOWQUALITY_SIMPLE_24BIT:
+            case SHADOWQUALITY_PCF_24BIT:
+                shadowMapFormat = graphics_->GetHiresShadowMapFormat();
+                break;
+
+            case SHADOWQUALITY_VSM:
+            case SHADOWQUALITY_BLUR_VSM:
+                shadowMapFormat = graphics_->GetRGFloat32Format();
+                shadowMapUsage = TEXTURE_RENDERTARGET;
+                multiSample = vsmMultiSample_;
+                break;
+        }
+
+        if (!shadowMapFormat)
+            return nullptr;
+
+        SharedPtr<Texture2D> newShadowMap(new Texture2D(context_));
+        int retries = 3;
+        unsigned dummyColorFormat = graphics_->GetDummyColorFormat();
+
+        // Disable mipmaps from the shadow map
+        newShadowMap->SetNumLevels(1);
+
+        while (retries)
+        {
+            if (!newShadowMap->SetSize(width, height, shadowMapFormat, shadowMapUsage, multiSample))
+            {
+                width >>= 1;
+                height >>= 1;
+                --retries;
+            }
+            else
+            {
+                // OpenGL (desktop) and D3D11: shadow compare mode needs to be specifically enabled for the shadow map
+                newShadowMap->SetFilterMode(FILTER_BILINEAR);
+                newShadowMap->SetShadowCompare(shadowMapUsage == TEXTURE_DEPTHSTENCIL);
+
+#ifndef MY3D_OPENGL
+                // Direct3D9: when shadow compare must be done manually, use nearest filtering so that the filtering of point lights
+                // and other shadowed lights matches
+                newShadowMap->SetFilterMode(graphics_->GetHardwareShadowSupport() ? FILTER_BILINEAR : FILTER_NEAREST);
+#endif
+                // Create dummy color texture for the shadow map if necessary: Direct3D9, or OpenGL when working around an OS X +
+                // Intel driver bug
+                if (shadowMapUsage == TEXTURE_DEPTHSTENCIL && dummyColorFormat)
+                {
+                    // If no dummy color rendertarget for this size exists yet, create one now
+                    if (!colorShadowMaps_.Contains(searchKey))
+                    {
+                        colorShadowMaps_[searchKey] = new Texture2D(context_);
+                        colorShadowMaps_[searchKey]->SetNumLevels(1);
+                        colorShadowMaps_[searchKey]->SetSize(width, height, dummyColorFormat, TEXTURE_RENDERTARGET);
+                    }
+                    // Link the color rendertarget to the shadow map
+                    newShadowMap->GetRenderSurface()->SetLinkedRenderTarget(colorShadowMaps_[searchKey]->GetRenderSurface());
+                }
+                break;
+            }
+        }
+
+        // If failed to set size, store a null pointer so that we will not retry
+        if (!retries)
+            newShadowMap.Reset();
+
+        shadowMaps_[searchKey].Push(newShadowMap);
+        if (!reuseShadowMaps_)
+            shadowMapAllocations_[searchKey].Push(light);
+
+        return newShadowMap;
+    }
+
     RenderSurface* Renderer::GetDepthStencil(int width, int height, int multiSample, bool autoResolve)
     {
         // Return the default depth-stencil surface if applicable
@@ -1067,6 +1226,39 @@ namespace My3D
         ResetScreenBufferAllocations();
         lightScissorCache_.Clear();
         lightStencilValue_ = 1;
+    }
+
+    void Renderer::RemoveUnusedBuffers()
+    {
+        for (unsigned i = occlusionBuffers_.Size() - 1; i < occlusionBuffers_.Size(); --i)
+        {
+            if (occlusionBuffers_[i]->GetUseTimer() > MAX_BUFFER_AGE)
+            {
+                MY3D_LOGDEBUG("Removed unused occlusion buffer");
+                occlusionBuffers_.Erase(i);
+            }
+        }
+
+        for (HashMap<unsigned long long, Vector<SharedPtr<Texture> > >::Iterator i = screenBuffers_.Begin(); i != screenBuffers_.End();)
+        {
+            HashMap<unsigned long long, Vector<SharedPtr<Texture> > >::Iterator current = i++;
+            Vector<SharedPtr<Texture> >& buffers = current->second_;
+            for (unsigned j = buffers.Size() - 1; j < buffers.Size(); --j)
+            {
+                Texture* buffer = buffers[j];
+                if (buffer->GetUseTimer() > MAX_BUFFER_AGE)
+                {
+                    MY3D_LOGDEBUG("Removed unused screen buffer size " + String(buffer->GetWidth()) + "x" + String(buffer->GetHeight()) +
+                                    " format " + String(buffer->GetFormat()));
+                    buffers.Erase(j);
+                }
+            }
+            if (buffers.Empty())
+            {
+                screenBufferAllocations_.Erase(current->first_);
+                screenBuffers_.Erase(current);
+            }
+        }
     }
 
     void Renderer::UpdateQueuedViewport(unsigned index)

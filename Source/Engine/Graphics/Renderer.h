@@ -432,6 +432,8 @@ namespace My3D
         SharedPtr<TextureCube> indirectionCubeMap_;
         /// Reusable scene nodes with shadow camera components.
         Vector<SharedPtr<Node> > shadowCameraNodes_;
+        /// Reusable occlusion buffers.
+        Vector<SharedPtr<OcclusionBuffer> > occlusionBuffers_;
         /// Shadow maps by resolution.
         HashMap<int, Vector<SharedPtr<Texture2D>>> shadowMaps_;
         /// Shadow map dummy color buffers by resolution.
