@@ -1425,12 +1425,223 @@ namespace My3D
             }
         }
 
+        {
+            // Set for safety in case of empty renderpath
+            currentRenderTarget_ = substituteRenderTarget_ ? substituteRenderTarget_ : renderTarget_;
+            currentViewportTexture_ = nullptr;
+            passCommand_ = nullptr;
+
+            bool viewportModified = false;
+            bool isPingponging = false;
+            usedResolve_ = false;
+
+            unsigned lastCommandIndex = 0;
+            for (unsigned i = 0; i < renderPath_->commands_.Size(); ++i)
+            {
+                RenderPathCommand& command = renderPath_->commands_[i];
+                if (actualView->IsNecessary(command))
+                    lastCommandIndex = i;
+            }
+
+            for (unsigned i = 0; i < renderPath_->commands_.Size(); ++i)
+            {
+                RenderPathCommand& command = renderPath_->commands_[i];
+                if (!actualView->IsNecessary(command))
+                    continue;
+
+                bool viewportRead = actualView->CheckViewportRead(command);
+                bool viewportWrite = actualView->CheckViewportWrite(command);
+                bool beginPingpong = actualView->CheckPingpong(i);
+
+                // Has the viewport been modified and will be read as a texture by the current command?
+                if (viewportRead && viewportModified)
+                {
+                    // Start pingponging without a blit if already rendering to the substitute render target
+                    if (currentRenderTarget_ && currentRenderTarget_ == substituteRenderTarget_ && beginPingpong)
+                        isPingponging = true;
+
+                    // If not using pingponging, simply resolve/copy to the first viewport texture
+                    if (!isPingponging)
+                    {
+                        if (!currentRenderTarget_)
+                        {
+                            graphics_->ResolveToTexture(dynamic_cast<Texture2D*>(viewportTextures_[0]), viewRect_);
+                            currentViewportTexture_ = viewportTextures_[0];
+                            viewportModified = false;
+                            usedResolve_ = true;
+                        }
+                        else
+                        {
+                            if (viewportWrite)
+                            {
+                                BlitFramebuffer(currentRenderTarget_->GetParentTexture(),
+                                                GetRenderSurfaceFromTexture(viewportTextures_[0]), false);
+                                currentViewportTexture_ = viewportTextures_[0];
+                                viewportModified = false;
+                            }
+                            else
+                            {
+                                // If the current render target is already a texture, and we are not writing to it, can read that
+                                // texture directly instead of blitting. However keep the viewport dirty flag in case a later command
+                                // will do both read and write, and then we need to blit / resolve
+                                currentViewportTexture_ = currentRenderTarget_->GetParentTexture();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Swap the pingpong double buffer sides. Texture 0 will be read next
+                        viewportTextures_[1] = viewportTextures_[0];
+                        viewportTextures_[0] = currentRenderTarget_->GetParentTexture();
+                        currentViewportTexture_ = viewportTextures_[0];
+                        viewportModified = false;
+                    }
+                }
+
+                if (beginPingpong)
+                    isPingponging = true;
+
+                // Determine viewport write target
+                if (viewportWrite)
+                {
+                    if (isPingponging)
+                    {
+                        currentRenderTarget_ = GetRenderSurfaceFromTexture(viewportTextures_[1]);
+                        // If the render path ends into a quad, it can be redirected to the final render target
+                        // However, on OpenGL we can not reliably do this in case the final target is the backbuffer, and we want to
+                        // render depth buffer sensitive debug geometry afterward (backbuffer and textures can not share depth)
+#ifndef MY3D_OPENGL
+                        if (i == lastCommandIndex && command.type_ == CMD_QUAD)
+#else
+                            if (i == lastCommandIndex && command.type_ == CMD_QUAD && renderTarget_)
+#endif
+                            currentRenderTarget_ = renderTarget_;
+                    }
+                    else
+                        currentRenderTarget_ = substituteRenderTarget_ ? substituteRenderTarget_ : renderTarget_;
+                }
+
+                switch (command.type_)
+                {
+                    case CMD_CLEAR:
+                    {
+                        Color clearColor = command.clearColor_;
+                        if (command.useFogColor_)
+                            clearColor = actualView->farClipZone_->GetFogColor();
+
+                        SetRenderTargets(command);
+                        graphics_->Clear(command.clearFlags_, clearColor, command.clearDepth_, command.clearStencil_);
+                    }
+                    break;
+
+                    case CMD_SCENEPASS:
+                    {
+                        BatchQueue& queue = actualView->batchQueues_[command.passIndex_];
+                        if (!queue.IsEmpty())
+                        {
+                            SetRenderTargets(command);
+                            bool allowDepthWrite = SetTextures(command);
+                            graphics_->SetClipPlane(camera_->GetUseClipping(), camera_->GetClipPlane(), camera_->GetView(),
+                                camera_->GetGPUProjection());
+
+                            if (command.shaderParameters_.Size())
+                            {
+                                // If pass defines shader parameters, reset parameter sources now to ensure they all will be set
+                                // (will be set after camera shader parameters)
+                                graphics_->ClearParameterSources();
+                                passCommand_ = &command;
+                            }
+
+                            queue.Draw(this, camera_, command.markToStencil_, false, allowDepthWrite);
+
+                            passCommand_ = nullptr;
+                        }
+                    }
+                    break;
+
+                    case CMD_QUAD:
+                    {
+                        SetRenderTargets(command);
+                        SetTextures(command);
+                        RenderQuad(command);
+                    }
+                    break;
+
+                    case CMD_FORWARDLIGHTS:
+                    // Render shadow maps + opaque objects' additive lighting
+                    if (!actualView->lightQueues_.Empty())
+                    {
+                        SetRenderTargets(command);
+
+                        for (auto& lightQueue : actualView->lightQueues_)
+                        {
+                            // If reusing shadowmaps, render each of them before the lit batches
+                            if (renderer_->GetReuseShadowMaps() && NeedRenderShadowMap(lightQueue))
+                            {
+                                RenderShadowMap(lightQueue);
+                                SetRenderTargets(command);
+                            }
+
+                            bool allowDepthWrite = SetTextures(command);
+                            graphics_->SetClipPlane(camera_->GetUseClipping(), camera_->GetClipPlane(), camera_->GetView(),
+                                                    camera_->GetGPUProjection());
+
+                            if (command.shaderParameters_.Size())
+                            {
+                                graphics_->ClearParameterSources();
+                                passCommand_ = &command;
+                            }
+
+                            // Draw base (replace blend) batches first
+                            lightQueue.litBaseBatches_.Draw(this, camera_, false, false, allowDepthWrite);
+
+                            // Then, if there are additive passes, optimize the light and draw them
+                            if (!lightQueue.litBatches_.IsEmpty())
+                            {
+                                renderer_->OptimizeLightByScissor(lightQueue.light_, camera_);
+                                if (!noStencil_)
+                                    renderer_->OptimizeLightByStencil(lightQueue.light_, camera_);
+                                lightQueue.litBatches_.Draw(this, camera_, false, true, allowDepthWrite);
+                            }
+
+                            passCommand_ = nullptr;
+                        }
+
+                        graphics_->SetScissorTest(false);
+                        graphics_->SetStencilTest(false);
+                    }
+                    break;
+                }
+            }
+        }
     }
 
     bool View::IsNecessary(const RenderPathCommand& command)
     {
         return command.enabled_ && command.outputs_.Size() &&
                (command.type_ != CMD_SCENEPASS || !batchQueues_[command.passIndex_].IsEmpty());
+    }
+
+    bool View::CheckViewportRead(const RenderPathCommand& command)
+    {
+        for (const auto& textureName : command.textureNames_)
+        {
+            if (!textureName.Empty() && !textureName.Compare("viewport", false))
+                return true;
+        }
+
+        return false;
+    }
+
+    bool View::CheckViewportWrite(const RenderPathCommand& command)
+    {
+        for (unsigned i = 0; i < command.outputs_.Size(); ++i)
+        {
+            if (!command.outputs_[i].first_.Compare("viewport", false))
+                return true;
+        }
+
+        return false;
     }
 
     void View::SetQueueShaderDefines(BatchQueue& queue, const RenderPathCommand& command)
