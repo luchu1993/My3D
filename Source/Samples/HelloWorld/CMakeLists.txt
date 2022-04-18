@@ -1,5 +1,5 @@
 
-set(TARGET_NAME HelloWorld)
+set(TARGET_NAME 01_HelloWorld)
 
 set(LIBS Engine)
 define_source_files()

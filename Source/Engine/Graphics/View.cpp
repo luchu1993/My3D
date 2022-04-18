@@ -1616,6 +1616,105 @@ namespace My3D
         }
     }
 
+    void View::SetRenderTargets(RenderPathCommand &command)
+    {
+        unsigned index = 0;
+        bool useColorWrite = true;
+        bool useCustomDepth = false;
+        bool useViewportOutput = false;
+
+        while (index < command.outputs_.Size())
+        {
+            if (!command.outputs_[index].first_.Compare("viewport", false))
+            {
+                graphics_->SetRenderTarget(index, currentRenderTarget_);
+                useViewportOutput = true;
+            }
+            else
+            {
+                Texture* texture = FindNamedTexture(command.outputs_[index].first_, true, false);
+
+                // Check for depth only rendering (by specifying a depth texture as the sole output)
+                if (!index && command.outputs_.Size() == 1 && (texture->GetFormat() == Graphics::GetReadableDepthFormat() ||
+                                                               texture->GetFormat() == Graphics::GetDepthStencilFormat()))
+                {
+                    useColorWrite = false;
+                    useCustomDepth = true;
+
+                    graphics_->SetRenderTarget(0, GetRenderSurfaceFromTexture(depthOnlyDummyTexture_));
+                    graphics_->SetDepthStencil(GetRenderSurfaceFromTexture(texture));
+                }
+                else
+                    graphics_->SetRenderTarget(index, GetRenderSurfaceFromTexture(texture, command.outputs_[index].second_));
+            }
+
+            ++index;
+        }
+
+        while (index < MAX_RENDERTARGETS)
+        {
+            graphics_->SetRenderTarget(index, (RenderSurface*) nullptr);
+            ++index;
+        }
+
+        if (command.depthStencilName_.Length())
+        {
+            Texture* depthTexture = FindNamedTexture(command.depthStencilName_, true, false);
+            if (depthTexture)
+            {
+                useCustomDepth = true;
+                lastCustomDepthSurface_ = GetRenderSurfaceFromTexture(depthTexture);
+                graphics_->SetDepthStencil(lastCustomDepthSurface_);
+            }
+        }
+
+        // When rendering to the final destination rendertarget, use the actual viewport.
+        // Otherwise texture rendertargets should use their full size as the viewport
+        IntVector2 rtSizeNow = graphics_->GetRenderTargetDimensions();
+        IntRect viewport = (useViewportOutput && currentRenderTarget_ == renderTarget_) ?
+                viewRect_ : IntRect(0, 0, rtSizeNow.x_, rtSizeNow.y_);
+
+        if (!useCustomDepth)
+            graphics_->SetDepthStencil(GetDepthStencil(graphics_->GetRenderTarget(0)));
+        graphics_->SetViewport(viewport);
+        graphics_->SetColorWrite(useColorWrite);
+    }
+
+    bool View::SetTextures(RenderPathCommand &command)
+    {
+        bool allowDepthWrite = true;
+
+        for (unsigned i = 0; i < MAX_TEXTURE_UNITS; ++i)
+        {
+            if (command.textureNames_[i].Empty())
+                continue;
+
+            // Bind the rendered output
+            if (!command.textureNames_[i].Compare("viewport", false))
+            {
+                graphics_->SetTexture(i, currentViewportTexture_);
+                continue;
+            }
+
+            Texture* texture = FindNamedTexture(command.textureNames_[i], false, i == TU_VOLUMEMAP);
+
+            if (texture)
+            {
+                graphics_->SetTexture(i, texture);
+                // Check if the current depth stencil is being sampled
+                if (graphics_->GetDepthStencil() && texture == graphics_->GetDepthStencil()->GetParentTexture())
+                    allowDepthWrite = false;
+            }
+            else
+            {
+                // If requesting a texture fails, clear the texture name to prevent redundant attempts
+                command.textureNames_[i] = String::EMPTY;
+            }
+        }
+
+        return allowDepthWrite;
+    }
+
     bool View::IsNecessary(const RenderPathCommand& command)
     {
         return command.enabled_ && command.outputs_.Size() &&
