@@ -1803,6 +1803,130 @@ namespace My3D
         return false;
     }
 
+    bool View::CheckPingpong(unsigned int index)
+    {
+        // Current command must be a viewport-reading & writing quad to begin the pingpong chain
+        RenderPathCommand& current = renderPath_->commands_[index];
+        if (current.type_ != CMD_QUAD || !CheckViewportRead(current) || !CheckViewportWrite(current))
+            return false;
+
+        // If there are commands other than quads that target the viewport, we must keep rendering to the final target and resolving
+        // to a viewport texture when necessary instead of pingponging, as a scene pass is not guaranteed to fill the entire viewport
+        for (unsigned i = index + 1; i < renderPath_->commands_.Size(); ++i)
+        {
+            RenderPathCommand& command = renderPath_->commands_[i];
+            if (!IsNecessary(command))
+                continue;
+            if (CheckViewportWrite(command))
+            {
+                if (command.type_ != CMD_QUAD)
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    void View::ProcessLight(LightQueryResult &query, unsigned int threadIndex)
+    {
+        Light* light = query.light_;
+        LightType type = light->GetLightType();
+        unsigned lightMask = light->GetLightMask();
+        const Frustum& frustum = cullCamera_->GetFrustum();
+
+        // Check if light should be shadowed
+        bool isShadowed = drawShadows_ && light->GetCastShadows() && !light->GetPerVertex() && light->GetShadowIntensity() < 1.0f;
+        // If shadow distance non-zero, check it
+        if (isShadowed && light->GetShadowDistance() > 0.0f && light->GetDistance() > light->GetShadowDistance())
+            isShadowed = false;
+
+        // Get lit geometries. They must match the light mask and be inside the main camera frustum to be considered
+        PODVector<Drawable*>& tempDrawables = tempDrawables_[threadIndex];
+        query.litGeometries_.Clear();
+
+        switch (type)
+        {
+        case LIGHT_DIRECTIONAL:
+            for (unsigned  i = 0; i < geometries_.Size(); ++i)
+            {
+                if (GetLightMask(geometries_[i]) & lightMask)
+                    query.litGeometries_.Push(geometries_[i]);
+            }
+            break;
+
+        case LIGHT_SPOT:
+            {
+                FrustumOctreeQuery octreeQuery(tempDrawables, light->GetFrustum(), DRAWABLE_GEOMETRY,
+                    cullCamera_->GetViewMask());
+                octree_->GetDrawables(octreeQuery);
+
+                for (unsigned i = 0; i < tempDrawables.Size(); ++i)
+                {
+                    if (tempDrawables[i]->IsInView(frame_) && (GetLightMask(tempDrawables[i]) & lightMask))
+                        query.litGeometries_.Push(tempDrawables[i]);
+                }
+            }
+            break;
+
+        case LIGHT_POINT:
+            {
+                SphereOctreeQuery octreeQuery(tempDrawables, Sphere(light->GetNode()->GetWorldPosition(), light->GetRange()),
+                    DRAWABLE_GEOMETRY, cullCamera_->GetViewMask());
+                octree_->GetDrawables(octreeQuery);
+                for (unsigned i = 0; i < tempDrawables.Size(); ++i)
+                {
+                    if (tempDrawables[i]->IsInView(frame_) && (GetLightMask(tempDrawables[i]) & lightMask))
+                        query.litGeometries_.Push(tempDrawables[i]);
+                }
+            }
+            break;
+        }
+
+        // If no lit geometries or not shadowed, no need to process shadow cameras
+        if (query.litGeometries_.Empty() || !isShadowed)
+        {
+            query.numSplits_ = 0;
+            return;
+        }
+
+        // Determine number of shadow cameras and setup their initial positions
+        SetupShadowCameras(query);
+
+        // Process each split for shadow casters
+        query.shadowCasters_.Clear();
+        for (unsigned  i = 0; i < query.numSplits_; ++i)
+        {
+            Camera* shadowCamera = query.shadowCameras_[i];
+            const Frustum& shadowCameraFrustum = shadowCamera->GetFrustum();
+            query.shadowCasterBegin_[i] = query.shadowCasterEnd_[i] = query.shadowCasters_.Size();
+
+            // For point light check that the face is visible: if not, can skip the split
+            if (type == LIGHT_POINT && frustum.IsInsideFast(BoundingBox(shadowCameraFrustum)) == OUTSIDE)
+                continue;
+
+            // For directional light check that the split is inside the visible scene: if not, can skip the split
+            if (type == LIGHT_DIRECTIONAL)
+            {
+                if (minZ_ > query.shadowFarSplits_[i])
+                    continue;
+                if (maxZ_ < query.shadowNearSplits_[i])
+                    continue;
+
+                // Reuse lit geometry query for all except directional lights
+                ShadowCasterOctreeQuery query(tempDrawables, shadowCameraFrustum, DRAWABLE_GEOMETRY, cullCamera_->GetViewMask());
+                octree_->GetDrawables(query);
+            }
+
+            // Check which shadow casters actually contribute to the shadowing
+            ProcessShadowCasters(query, tempDrawables, i);
+        }
+
+        // If no shadow casters, the light can be rendered unshadowed. At this point we have not allocated a shadow map yet, so the
+        // only cost has been the shadow camera setup & queries
+        if (query.shadowCasters_.Empty())
+            query.numSplits_ = 0;
+    }
+
     void View::SetQueueShaderDefines(BatchQueue& queue, const RenderPathCommand& command)
     {
         String vsDefines = command.vertexShaderDefines_.Trimmed();
