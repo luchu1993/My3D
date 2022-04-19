@@ -1715,6 +1715,66 @@ namespace My3D
         return allowDepthWrite;
     }
 
+    void View::RenderQuad(RenderPathCommand &command)
+    {
+        if (command.vertexShaderName_.Empty() || command.pixelShaderName_.Empty())
+            return;
+
+        // If shader can not be found, clear it from the command to prevent redundant attempts
+        ShaderVariation* vs = graphics_->GetShader(VS, command.vertexShaderName_, command.vertexShaderDefines_);
+        if (!vs)
+            command.vertexShaderName_ = String::EMPTY;
+        ShaderVariation* ps = graphics_->GetShader(PS, command.pixelShaderName_, command.pixelShaderDefines_);
+        if (!ps)
+            command.pixelShaderName_ = String::EMPTY;
+
+        // Set shaders & shader parameters and textures
+        graphics_->SetShaders(vs, ps);
+
+        SetGlobalShaderParameters();
+        SetCameraShaderParameters(camera_);
+
+        // During renderpath commands the G-Buffer or viewport texture is assumed to always be viewport-sized
+        IntRect viewport = graphics_->GetViewport();
+        IntVector2 viewSize = IntVector2(viewport.Width(), viewport.Height());
+        SetGBufferShaderParameters(viewSize, IntRect(0, 0, viewSize.x_, viewSize.y_));
+
+        // Set per-rendertarget inverse size / offset shader parameters as necessary
+        for (unsigned i = 0; i < renderPath_->renderTargets_.Size(); ++i)
+        {
+            const RenderTargetInfo& rtInfo = renderPath_->renderTargets_[i];
+            if (!rtInfo.enabled_)
+                continue;
+
+            StringHash nameHash(rtInfo.name_);
+            if (!renderTargets_.Contains(nameHash))
+                continue;
+
+            String invSizeName = rtInfo.name_ + "InvSize";
+            String offsetsName = rtInfo.name_ + "Offsets";
+            auto width = (float)renderTargets_[nameHash]->GetWidth();
+            auto height = (float)renderTargets_[nameHash]->GetHeight();
+
+            const Vector2& pixelUVOffset = Graphics::GetPixelUVOffset();
+            graphics_->SetShaderParameter(invSizeName, Vector2(1.0f / width, 1.0f / height));
+            graphics_->SetShaderParameter(offsetsName, Vector2(pixelUVOffset.x_ / width, pixelUVOffset.y_ / height));
+        }
+
+        // Set command's shader parameters last to allow them to override any of the above
+        SetCommandShaderParameters(command);
+
+        graphics_->SetBlendMode(command.blendMode_);
+        graphics_->SetDepthTest(CMP_ALWAYS);
+        graphics_->SetDepthWrite(false);
+        graphics_->SetFillMode(FILL_SOLID);
+        graphics_->SetLineAntiAlias(false);
+        graphics_->SetClipPlane(false);
+        graphics_->SetScissorTest(false);
+        graphics_->SetStencilTest(false);
+
+        DrawFullscreenQuad(false);
+    }
+
     bool View::IsNecessary(const RenderPathCommand& command)
     {
         return command.enabled_ && command.outputs_.Size() &&
