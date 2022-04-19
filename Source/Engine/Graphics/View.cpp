@@ -1927,6 +1927,100 @@ namespace My3D
             query.numSplits_ = 0;
     }
 
+    void View::SetupShadowCameras(LightQueryResult &query)
+    {
+        Light* light = query.light_;
+        unsigned  splits = 0;
+
+        switch (light->GetLightType())
+        {
+        case LIGHT_DIRECTIONAL:
+            {
+                const CascadeParameters& cascade = light->GetShadowCascade();
+                float nearSplit = cullCamera_->GetNearClip();
+                float farSplit;
+                int numSplits = light->GetNumShadowSplits();
+
+                while (splits < numSplits)
+                {
+                    // If split is completely beyond camera far clip, we are done
+                    if (nearSplit > cullCamera_->GetFarClip())
+                        break;
+
+                    farSplit = Min(cullCamera_->GetFarClip(), cascade.splits_[splits]);
+                    if (farSplit <= nearSplit)
+                        break;
+
+                    // Setup the shadow camera for the split
+                    Camera* shadowCamera = renderer_->GetShadowCamera();
+                    query.shadowCameras_[splits] = shadowCamera;
+                    query.shadowNearSplits_[splits] = nearSplit;
+                    query.shadowFarSplits_[splits] = farSplit;
+                    SetupDirLightShadowCamera(shadowCamera, light, nearSplit, farSplit);
+
+                    nearSplit = farSplit;
+                    ++splits;
+                }
+            }
+            break;
+
+        case LIGHT_SPOT:
+            {
+                Camera* shadowCamera = renderer_->GetShadowCamera();
+                query.shadowCameras_[0] = shadowCamera;
+                Node* cameraNode = shadowCamera->GetNode();
+                Node* lightNode = light->GetNode();
+
+                cameraNode->SetTransform(lightNode->GetWorldPosition(), lightNode->GetWorldRotation());
+                shadowCamera->SetNearClip(light->GetShadowNearFarRatio() * light->GetRange());
+                shadowCamera->SetFarClip(light->GetRange());
+                shadowCamera->SetFov(light->GetFov());
+                shadowCamera->SetAspectRatio(light->GetAspectRatio());
+
+                splits = 1;
+            }
+            break;
+
+        case LIGHT_POINT:
+            {
+                static const Vector3* directions[] =
+                {
+                        &Vector3::RIGHT,
+                        &Vector3::LEFT,
+                        &Vector3::UP,
+                        &Vector3::DOWN,
+                        &Vector3::FORWARD,
+                        &Vector3::BACK
+                };
+
+                for (unsigned i = 0; i < MAX_CUBEMAP_FACES; ++i)
+                {
+                    Camera* shadowCamera = renderer_->GetShadowCamera();
+                    query.shadowCameras_[i] = shadowCamera;
+                    Node* cameraNode = shadowCamera->GetNode();
+
+                    // When making a shadowed point light, align the splits along X, Y and Z axes regardless of light rotation
+                    cameraNode->SetPosition(light->GetNode()->GetWorldPosition());
+                    cameraNode->SetDirection(*directions[i]);
+                    shadowCamera->SetNearClip(light->GetShadowNearFarRatio() * light->GetRange());
+                    shadowCamera->SetFarClip(light->GetRange());
+                    shadowCamera->SetFov(90.0f);
+                    shadowCamera->SetAspectRatio(1.0f);
+                }
+
+                splits = MAX_CUBEMAP_FACES;
+            }
+            break;
+        }
+
+        query.numSplits_ = splits;
+    }
+
+    void View::SetupDirLightShadowCamera(Camera* shadowCamera, Light* light, float nearSplit, float farSplit)
+    {
+
+    }
+
     void View::SetQueueShaderDefines(BatchQueue& queue, const RenderPathCommand& command)
     {
         String vsDefines = command.vertexShaderDefines_.Trimmed();
