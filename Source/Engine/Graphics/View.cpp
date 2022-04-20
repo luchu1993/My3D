@@ -1985,12 +1985,12 @@ namespace My3D
             {
                 static const Vector3* directions[] =
                 {
-                        &Vector3::RIGHT,
-                        &Vector3::LEFT,
-                        &Vector3::UP,
-                        &Vector3::DOWN,
-                        &Vector3::FORWARD,
-                        &Vector3::BACK
+                    &Vector3::RIGHT,
+                    &Vector3::LEFT,
+                    &Vector3::UP,
+                    &Vector3::DOWN,
+                    &Vector3::FORWARD,
+                    &Vector3::BACK
                 };
 
                 for (unsigned i = 0; i < MAX_CUBEMAP_FACES; ++i)
@@ -2018,7 +2018,68 @@ namespace My3D
 
     void View::SetupDirLightShadowCamera(Camera* shadowCamera, Light* light, float nearSplit, float farSplit)
     {
+        Node* shadowCameraNode = shadowCamera->GetNode();
+        Node* lightNode = light->GetNode();
+        float extrusionDistance = Min(cullCamera_->GetFarClip(), light->GetShadowMaxExtrusion());
+        const FocusParameters& parameters = light->GetShadowFocus();
 
+        // Calculate initial position & rotation
+        Vector3 pos = cullCamera_->GetNode()->GetWorldPosition() - extrusionDistance * lightNode->GetWorldDirection();
+        shadowCameraNode->SetTransform(pos, lightNode->GetWorldRotation());
+
+        // Calculate main camera shadowed frustum in light's view space
+        farSplit = Min(farSplit, cullCamera_->GetFarClip());
+        // Use the scene Z bounds to limit frustum size if applicable
+        if (parameters.focus_)
+        {
+            nearSplit = Max(minZ_, nearSplit);
+            farSplit = Min(maxZ_, farSplit);
+        }
+
+        Frustum splitFrustum = cullCamera_->GetSplitFrustum(nearSplit, farSplit);
+        Polyhedron frustumVolume;
+        frustumVolume.Define(splitFrustum);
+        // If focusing enabled, clip the frustum volume by the combined bounding box of the lit geometries within the frustum
+        if (parameters.focus_)
+        {
+            BoundingBox litGeometriesBox;
+            unsigned lightMask = light->GetLightMask();
+
+            for (unsigned i = 0; i < geometries_.Size(); ++i)
+            {
+                Drawable* drawable = geometries_[i];
+                if (drawable->GetMinZ() <= farSplit && drawable->GetMaxZ() >= nearSplit &&
+                    (GetLightMask(drawable) & lightMask))
+                    litGeometriesBox.Merge(drawable->GetWorldBoundingBox());
+            }
+
+            if (litGeometriesBox.Defined())
+            {
+                frustumVolume.Clip(litGeometriesBox);
+                // If volume became empty, restore it to avoid zero size
+                if (frustumVolume.Empty())
+                    frustumVolume.Define(splitFrustum);
+            }
+        }
+
+        // Transform frustum volume to light space
+        const Matrix3x4& lightView = shadowCamera->GetView();
+        frustumVolume.Transform(lightView);
+
+        // Fit the frustum volume inside a bounding box. If uniform size, use a sphere instead
+        BoundingBox shadowBox;
+        if (!parameters.nonUniform_)
+            shadowBox.Define(Sphere(frustumVolume));
+        else
+            shadowBox.Define(frustumVolume);
+
+        shadowCamera->SetOrthographic(true);
+        shadowCamera->SetAspectRatio(1.0f);
+        shadowCamera->SetNearClip(0.0f);
+        shadowCamera->SetFarClip(shadowBox.max_.z_);
+
+        // Center shadow camera on the bounding box. Can not snap to texels yet as the shadow map viewport is unknown
+        QuantizeDirLightShadowCamera(shadowCamera, light, IntRect(0, 0, 0, 0), shadowBox);
     }
 
     void View::SetQueueShaderDefines(BatchQueue& queue, const RenderPathCommand& command)
