@@ -44,7 +44,7 @@ namespace My3D
         unsigned color_{};
     };
 
-/// Debug render triangle.
+    /// Debug render triangle.
     struct DebugTriangle
     {
         /// Construct undefined.
@@ -80,7 +80,7 @@ namespace My3D
         /// Destruct
         ~DebugRenderer() override;
         /// Register object factory
-        static void RegisterObject(Context* const);
+        static void RegisterObject(Context* context);
 
         /// Set line antialiasing on/off. Default false.
         void SetLineAntiAlias(bool enable);

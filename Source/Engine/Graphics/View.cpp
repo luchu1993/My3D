@@ -1927,6 +1927,147 @@ namespace My3D
             query.numSplits_ = 0;
     }
 
+    void View::ProcessShadowCasters(LightQueryResult& query, const PODVector<Drawable*>& drawables, unsigned splitIndex)
+    {
+        Light* light = query.light_;
+        unsigned lightMask = light->GetLightMask();
+
+        Camera* shadowCamera = query.shadowCameras_[splitIndex];
+        const Frustum& shadowCameraFrustum = shadowCamera->GetFrustum();
+        const Matrix3x4& lightView = shadowCamera->GetView();
+        const Matrix4& lightProj = shadowCamera->GetProjection();
+        LightType type = light->GetLightType();
+
+        query.shadowCasterBox_[splitIndex].Clear();
+
+        // Transform scene frustum into shadow camera's view space for shadow caster visibility check. For point & spot lights,
+        // we can use the whole scene frustum. For directional lights, use the intersection of the scene frustum and the split
+        // frustum, so that shadow casters do not get rendered into unnecessary splits
+        Frustum lightViewFrustum;
+        if (type != LIGHT_DIRECTIONAL)
+            lightViewFrustum = cullCamera_->GetSplitFrustum(minZ_, maxZ_).Transformed(lightView);
+        else
+            lightViewFrustum = cullCamera_->GetSplitFrustum(Max(minZ_, query.shadowFarSplits_[splitIndex]),
+                Min(maxZ_, query.shadowFarSplits_[splitIndex])).Transformed(lightView);
+
+        BoundingBox lightViewFrustumBox(lightViewFrustum);
+
+        // Check for degenerate split frustum: in that case there is no need to get shadow casters
+        if (lightViewFrustum.vertices_[0] == lightViewFrustum.vertices_[4])
+            return;
+
+        BoundingBox lightViewBox;
+        BoundingBox lightProjBox;
+
+        for (Drawable* drawable : drawables)
+        {
+            // In case this is a point or spot light query result reused for optimization, we may have non-shadowcasters included.
+            // Check for that first
+            if (!drawable->GetCastShadows())
+                continue;
+            // Check shadow mask
+            if (!(GetShadowMask(drawable) & lightMask))
+                continue;
+            // For point light, check that this drawable is inside the split shadow camera frustum
+            if (type == LIGHT_POINT && shadowCameraFrustum.IsInsideFast(drawable->GetWorldBoundingBox()) == OUTSIDE)
+                continue;
+
+            // Check shadow distance
+            // Note: as lights are processed threaded, it is possible a drawable's UpdateBatches() function is called several
+            // times. However, this should not cause problems as no scene modification happens at this point.
+            if (!drawable->IsInView(frame_, true))
+                drawable->UpdateBatches(frame_);
+            float maxShadowDistance = drawable->GetShadowDistance();
+            float drawDistance = drawable->GetDrawDistance();
+            if (drawDistance > 0.0f && (maxShadowDistance <= 0.0f || drawDistance < maxShadowDistance))
+                maxShadowDistance = drawDistance;
+            if (maxShadowDistance > 0.0f && drawable->GetDistance() > maxShadowDistance)
+                continue;
+
+            // Project shadow caster bounding box to light view space for visibility check
+            lightViewBox = drawable->GetWorldBoundingBox().Transformed(lightView);
+
+            if (IsShadowCasterVisible(drawable, lightViewBox, shadowCamera, lightView, lightViewFrustum, lightViewFrustumBox))
+            {
+                // Merge to shadow caster bounding box (only needed for focused spot lights) and add to the list
+                if (type == LIGHT_SPOT && light->GetShadowFocus().focus_)
+                {
+                    lightProjBox = lightViewBox.Projected(lightProj);
+                    query.shadowCasterBox_[splitIndex].Merge(lightProjBox);
+                }
+                query.shadowCasters_.Push(drawable);
+            }
+        }
+
+        query.shadowCasterEnd_[splitIndex] = query.shadowCasters_.Size();
+    }
+
+    bool View::IsShadowCasterVisible(Drawable *drawable, BoundingBox lightViewBox, Camera *shadowCamera,
+         const Matrix3x4 &lightView, const Frustum &lightViewFrustum, const BoundingBox &lightViewFrustumBox)
+    {
+        if (shadowCamera->IsOrthographic())
+        {
+            // Extrude the light space bounding box up to the far edge of the frustum's light space bounding box
+            lightViewBox.max_.z_ = Max(lightViewBox.max_.z_, lightViewFrustumBox.max_.z_);
+            return lightViewFrustum.IsInsideFast(lightViewBox) != OUTSIDE;
+        }
+        else
+        {
+            // If light is not directional, can do a simple check: if object is visible, its shadow is too
+            if (drawable->IsInView(frame_))
+                return true;
+
+            // For perspective lights, extrusion direction depends on the position of the shadow caster
+            Vector3 center = lightViewBox.Center();
+            Ray extrusionRay(center, center);
+
+            float extrusionDistance = shadowCamera->GetFarClip();
+            float originalDistance = Clamp(center.Length(), M_EPSILON, extrusionDistance);
+
+            // Because of the perspective, the bounding box must also grow when it is extruded to the distance
+            float sizeFactor = extrusionDistance / originalDistance;
+
+            // Calculate the endpoint box and merge it to the original. Because it's axis-aligned, it will be larger
+            // than necessary, so the test will be conservative
+            Vector3 newCenter = extrusionDistance * extrusionRay.direction_;
+            Vector3 newHalfSize = lightViewBox.Size() * sizeFactor * 0.5f;
+            BoundingBox extrudedBox(newCenter - newHalfSize, newCenter + newHalfSize);
+            lightViewBox.Merge(extrudedBox);
+
+            return lightViewFrustum.IsInsideFast(lightViewBox) != OUTSIDE;
+        }
+    }
+
+    IntRect View::GetShadowMapViewport(Light* light, int splitIndex, Texture2D* shadowMap)
+    {
+        int width = shadowMap->GetWidth();
+        int height = shadowMap->GetHeight();
+
+        switch (light->GetLightType())
+        {
+            case LIGHT_DIRECTIONAL:
+            {
+                int numSplits = light->GetNumShadowSplits();
+                if (numSplits == 1)
+                    return {0, 0, width, height};
+                else if (numSplits == 2)
+                    return {splitIndex * width / 2, 0, (splitIndex + 1) * width / 2, height};
+                else
+                    return {(splitIndex & 1) * width / 2, (splitIndex / 2) * height / 2,
+                            ((splitIndex & 1) + 1) * width / 2, (splitIndex / 2 + 1) * height / 2};
+            }
+
+            case LIGHT_SPOT:
+                return {0, 0, width, height};
+
+            case LIGHT_POINT:
+                return {(splitIndex & 1) * width / 2, (splitIndex / 2) * height / 3,
+                        ((splitIndex & 1) + 1) * width / 2, (splitIndex / 2 + 1) * height / 3};
+        }
+
+        return {};
+    }
+
     void View::SetupShadowCameras(LightQueryResult &query)
     {
         Light* light = query.light_;

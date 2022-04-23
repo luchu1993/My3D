@@ -4,6 +4,7 @@
 
 
 #include "Math/Frustum.h"
+#include "Math/Polyhedron.h"
 #include "Math/BoundingBox.h"
 #include "Math/Sphere.h"
 #include "Math/Matrix3x4.h"
@@ -25,6 +26,12 @@ namespace My3D
     {
         Clear();
         Define(frustum.vertices_, NUM_FRUSTUM_VERTICES);
+    }
+
+    void BoundingBox::Define(const Polyhedron& poly)
+    {
+        Clear();
+        Merge(poly);
     }
 
     void BoundingBox::Define(const Sphere &sphere)
@@ -49,6 +56,21 @@ namespace My3D
 
         Merge(center + Vector3(radius, radius, radius));
         Merge(center + Vector3(-radius, -radius, -radius));
+    }
+
+    void BoundingBox::Merge(const Frustum& frustum)
+    {
+        Merge(frustum.vertices_, NUM_FRUSTUM_VERTICES);
+    }
+
+    void BoundingBox::Merge(const Polyhedron& poly)
+    {
+        for (unsigned i = 0; i < poly.faces_.Size(); ++i)
+        {
+            const PODVector<Vector3>& face = poly.faces_[i];
+            if (!face.Empty())
+                Merge(&face[0], face.Size());
+        }
     }
 
     void BoundingBox::Clip(const BoundingBox& box)

@@ -10,7 +10,7 @@
 
 namespace My3D
 {
-
+    class Polyhedron;
     class Frustum;
     class Matrix3;
     class Matrix4;
@@ -66,6 +66,38 @@ namespace My3D
             , max_(-M_INFINITY, -M_INFINITY, -M_INFINITY)
         {
             Define(frustum);
+        }
+
+        /// Construct from a polyhedron.
+        explicit BoundingBox(const Polyhedron& poly) :
+                min_(M_INFINITY, M_INFINITY, M_INFINITY),
+                max_(-M_INFINITY, -M_INFINITY, -M_INFINITY)
+        {
+            Define(poly);
+        }
+
+        /// Construct from a sphere.
+        explicit BoundingBox(const Sphere& sphere) :
+                min_(M_INFINITY, M_INFINITY, M_INFINITY),
+                max_(-M_INFINITY, -M_INFINITY, -M_INFINITY)
+        {
+            Define(sphere);
+        }
+
+        /// Assign from another bounding box.
+        BoundingBox& operator =(const BoundingBox& rhs) noexcept
+        {
+            min_ = rhs.min_;
+            max_ = rhs.max_;
+            return *this;
+        }
+
+        /// Assign from a Rect, with the Z dimension left zero.
+        BoundingBox& operator =(const Rect& rhs) noexcept
+        {
+            min_ = Vector3(rhs.min_, 0.0f);
+            max_ = Vector3(rhs.max_, 0.0f);
+            return *this;
         }
 
         /// Define from another bounding box.
@@ -131,12 +163,20 @@ namespace My3D
         void Define(const Vector3* vertices, unsigned count);
         /// Define from a frustum.
         void Define(const Frustum& frustum);
+        /// Define from a polyhedron.
+        void Define(const Polyhedron& poly);
         /// Define from a sphere.
         void Define(const Sphere& sphere);
+
         /// Merge an array of vertices.
         void Merge(const Vector3* vertices, unsigned count);
         /// Merge a sphere.
         void Merge(const Sphere& sphere);
+        /// Merge a frustum.
+        void Merge(const Frustum& frustum);
+        /// Merge a polyhedron.
+        void Merge(const Polyhedron& poly);
+
         /// Clip with another bounding box. The box can become degenerate (undefined) as a result.
         void Clip(const BoundingBox& box);
         /// Transform with a 3x3 matrix.

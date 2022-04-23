@@ -4,6 +4,8 @@
 
 #include "Math/Sphere.h"
 #include "Math/BoundingBox.h"
+#include "Math/Frustum.h"
+#include "Math/Polyhedron.h"
 
 
 namespace My3D
@@ -33,6 +35,17 @@ namespace My3D
         Merge(max);
     }
 
+    void Sphere::Define(const Frustum& frustum)
+    {
+        Define(frustum.vertices_, NUM_FRUSTUM_VERTICES);
+    }
+
+    void Sphere::Define(const Polyhedron& poly)
+    {
+        Clear();
+        Merge(poly);
+    }
+
     void Sphere::Merge(const Vector3* vertices, unsigned count)
     {
         while (count--)
@@ -52,6 +65,55 @@ namespace My3D
         Merge(Vector3(max.x_, min.y_, max.z_));
         Merge(Vector3(min.x_, max.y_, max.z_));
         Merge(max);
+    }
+
+    void Sphere::Merge(const Frustum& frustum)
+    {
+        const Vector3* vertices = frustum.vertices_;
+        Merge(vertices, NUM_FRUSTUM_VERTICES);
+    }
+
+    void Sphere::Merge(const Polyhedron& poly)
+    {
+        for (unsigned i = 0; i < poly.faces_.Size(); ++i)
+        {
+            const PODVector<Vector3>& face = poly.faces_[i];
+            if (!face.Empty())
+                Merge(&face[0], face.Size());
+        }
+    }
+
+    void Sphere::Merge(const Sphere& sphere)
+    {
+        if (radius_ < 0.0f)
+        {
+            center_ = sphere.center_;
+            radius_ = sphere.radius_;
+            return;
+        }
+
+        Vector3 offset = sphere.center_ - center_;
+        float dist = offset.Length();
+
+        // If sphere fits inside, do nothing
+        if (dist + sphere.radius_ < radius_)
+            return;
+
+        // If we fit inside the other sphere, become it
+        if (dist + radius_ < sphere.radius_)
+        {
+            center_ = sphere.center_;
+            radius_ = sphere.radius_;
+        }
+        else
+        {
+            Vector3 NormalizedOffset = offset / dist;
+
+            Vector3 min = center_ - radius_ * NormalizedOffset;
+            Vector3 max = sphere.center_ + sphere.radius_ * NormalizedOffset;
+            center_ = (min + max) * 0.5f;
+            radius_ = (max - center_).Length();
+        }
     }
 
     Intersection Sphere::IsInside(const BoundingBox& box) const

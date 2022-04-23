@@ -9,7 +9,7 @@
 #include "Graphics/Batch.h"
 #include "Graphics/Light.h"
 #include "Graphics/Zone.h"
-
+#include "Math/Polyhedron.h"
 
 namespace My3D
 {
