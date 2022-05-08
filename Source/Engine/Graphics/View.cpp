@@ -2223,6 +2223,39 @@ namespace My3D
         QuantizeDirLightShadowCamera(shadowCamera, light, IntRect(0, 0, 0, 0), shadowBox);
     }
 
+    void View::FindZone(Drawable* drawable)
+    {
+        Vector3 center = drawable->GetWorldBoundingBox().Center();
+        int bestPriority = M_MIN_INT;
+        Zone* newZone = nullptr;
+
+        // If bounding box center is in view, the zone assignment is conclusive also for next frames. Otherwise it is temporary
+        // (possibly incorrect) and must be re-evaluated on the next frame
+        bool temporary = !cullCamera_->GetFrustum().IsInside(center);
+
+        // First check if the current zone remains a conclusive result
+        Zone* lastZone = drawable->GetZone();
+
+        if (lastZone && (lastZone->GetViewMask() & cullCamera_->GetViewMask()) && lastZone->GetPriority() >= highestZonePriority_ &&
+            (drawable->GetZoneMask() & lastZone->GetZoneMask()) && lastZone->IsInside(center))
+            newZone = lastZone;
+        else
+        {
+            for (PODVector<Zone*>::Iterator i = zones_.Begin(); i != zones_.End(); ++i)
+            {
+                Zone* zone = *i;
+                int priority = zone->GetPriority();
+                if (priority > bestPriority && (drawable->GetZoneMask() & zone->GetZoneMask()) && zone->IsInside(center))
+                {
+                    newZone = zone;
+                    bestPriority = priority;
+                }
+            }
+        }
+
+        drawable->SetZone(newZone, temporary);
+    }
+
     void View::SetQueueShaderDefines(BatchQueue& queue, const RenderPathCommand& command)
     {
         String vsDefines = command.vertexShaderDefines_.Trimmed();
@@ -2499,39 +2532,6 @@ namespace My3D
         eventData[P_CAMERA] = cullCamera_;
 
         renderer_->SendEvent(eventType, eventData);
-    }
-
-    void View::FindZone(Drawable* drawable)
-    {
-        Vector3 center = drawable->GetWorldBoundingBox().Center();
-        int bestPriority = M_MIN_INT;
-        Zone* newZone = nullptr;
-
-        // If bounding box center is in view, the zone assignment is conclusive also for next frames. Otherwise it is temporary
-        // (possibly incorrect) and must be re-evaluated on the next frame
-        bool temporary = !cullCamera_->GetFrustum().IsInside(center);
-
-        // First check if the current zone remains a conclusive result
-        Zone* lastZone = drawable->GetZone();
-
-        if (lastZone && (lastZone->GetViewMask() & cullCamera_->GetViewMask()) && lastZone->GetPriority() >= highestZonePriority_ &&
-            (drawable->GetZoneMask() & lastZone->GetZoneMask()) && lastZone->IsInside(center))
-            newZone = lastZone;
-        else
-        {
-            for (PODVector<Zone*>::Iterator i = zones_.Begin(); i != zones_.End(); ++i)
-            {
-                Zone* zone = *i;
-                int priority = zone->GetPriority();
-                if (priority > bestPriority && (drawable->GetZoneMask() & zone->GetZoneMask()) && zone->IsInside(center))
-                {
-                    newZone = zone;
-                    bestPriority = priority;
-                }
-            }
-        }
-
-        drawable->SetZone(newZone, temporary);
     }
 
     Technique* View::GetTechnique(Drawable* drawable, Material* material)
