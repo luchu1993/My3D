@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="Urho3D::String">
+		<DisplayString Condition="Empty()">EMPTY</DisplayString>
+        <DisplayString Condition="IsShort()">{data_.shortString_.buffer_,s}</DisplayString>
+        <DisplayString>{data_.longString_.buffer_,s}</DisplayString>
+	</Type>
+    
+    <Type Name="Urho3D::StringHash"> 
+        <DisplayString>(hash: {value_,X})</DisplayString>
+    </Type>
+	
+    <Type Name="Urho3D::Vector&lt;*&gt;">
+        <DisplayString Condition="size_==0">EMPTY</DisplayString>
+		<DisplayString>Vector(size={size_}, capacity={capacity_})</DisplayString>
+		<Expand>
+			<ArrayItems>
+				<Size>size_</Size>
+				<ValuePointer>($T1 *)buffer_</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+
+    <Type Name="Urho3D::List&lt;*&gt;">
+        <DisplayString Condition="size_==0">EMPTY</DisplayString>
+        <DisplayString>List(size={size_})</DisplayString>
+        <Expand>
+            <CustomListItems>
+                <Size>size_</Size>
+                <Variable Name="cur_" InitialValue="head_" />
+                <Loop>
+                    <Break Condition="cur_ == nullptr"/>
+                    <Item>((Node*)cur_)->value_</Item>
+                    <Exec>cur_ = cur_->next_</Exec>
+                </Loop>
+            </CustomListItems>
+        </Expand>
+    </Type>
+    
+    <Type Name="Urho3D::Vector3">
+        <DisplayString>({x_},{y_},{z_})</DisplayString>
+    </Type>
+    
+    <Type Name="Urho3D::BoundingBox">
+        <DisplayString>(min={min_},max={max_})</DisplayString>
+    </Type>
+    
+    <Type Name="Urho3D::SharedPtr&lt;*&gt;">
+        <DisplayString Condition="ptr_==nullptr">nullptr</DisplayString>
+        <DisplayString>{ptr_}</DisplayString>
+    </Type>
+    
+    <Type Name="Urho3D::Node"> 
+        <DisplayString>(id={id_},name={impl_->name_},enable={enabled_})</DisplayString>
+    </Type>
+    
+    <Type Name="Urho3D::Component">
+        <DisplayString>(id={id_},enable={enabled_},node={node_})</DisplayString>
+    </Type>
+	
+    <Type Name="Urho3D::RenderPathCommand">
+        <DisplayString>(type={type_},pass={pass_},passIndex={passIndex_})</DisplayString>
+    </Type>
+    
+    <Type Name="Urho3D::Pass">
+		<DisplayString>(name={name_},index={index_})</DisplayString>
+	</Type>
+	
+</AutoVisualizer>
