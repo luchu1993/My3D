@@ -7,9 +7,54 @@
     </Type>
 
     <Type Name="Urho3D::StringHash">
-        <DisplayString>(hash: {value_,X})</DisplayString>
+        <DisplayString>{Urho3D::GetGlobalStringHashRegister().GetString(*this)}, hash:{value_,X}</DisplayString>
     </Type>
-
+    
+    <Type Name="Urho3D::Variant">
+        <DisplayString Condition="type_==VariantType::VAR_NONE">None</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_INT">{value_.int_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_INT64">{value_.int64_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_BOOL">{value_.bool_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_FLOAT">{value_.float_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_DOUBLE">{value_.double_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_VECTOR2">{value_.vector2_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_VECTOR3">{value_.vector3_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_INTVECTOR2">{value_.intVector2_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_INTVECTOR3">{value_.intVector3_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_VECTOR4">{value_.vector4_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_QUATERNION">{value_.quaternion_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_RECT">{value_.rect_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_VECTOR4">{value_.intRect_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_INTRECT">{value_.color_}</DisplayString>
+        <DisplayString Condition="type_==VariantType::VAR_STRING">{value_.string_}</DisplayString>
+    </Type>
+    
+    <!-- Math types -->
+    <Type Name="Urho3D::Vector2">
+        <DisplayString>{(X=x_,Y=y_)}</DisplayString>
+    </Type>
+    <Type Name="Urho3D::Vector3">
+        <DisplayString>{(X=x_,Y=y_,Z=z_)}</DisplayString>
+    </Type>
+    <Type Name="Urho3D::IntVector2">
+        <DisplayString>{(X=x_,Y=y_)}</DisplayString>
+    </Type>
+    <Type Name="Urho3D::IntVector3">
+        <DisplayString>{(X=x_,Y=y_,Z=z_)}</DisplayString>
+    </Type>
+    <Type Name="Urho3D::Vector4">
+        <DisplayString>{(X=x_,Y=y_,Z=z_,W=w_)}</DisplayString>
+    </Type>
+    <Type Name="Urho3D::Quaternion">
+        <DisplayString>(Yaw:{YawAngle()},Pitch:{PitchAngle()},Row:{RollAngle()})</DisplayString>
+    </Type>
+    <Type Name="Urho3D::Rect">
+        <DisplayString>{min:main_,max:max_}</DisplayString>
+    </Type>
+    <Type Name="Urho3D::IntRect">
+        <DisplayString>{min:main_,max:max_}</DisplayString>
+    </Type>
+    
     <Type Name="Urho3D::Vector&lt;*&gt;">
         <DisplayString Condition="size_==0">EMPTY</DisplayString>
         <DisplayString>Vector(size={size_}, capacity={capacity_})</DisplayString>
@@ -39,7 +84,7 @@
 
     <Type Name="Urho3D::HashMap&lt;*&gt;">
         <DisplayString Condition="Size()==0">EMPTY</DisplayString>
-        <DisplayString>List(size={Size()})</DisplayString>
+        <DisplayString>HashMap(size={Size()})</DisplayString>
         <Expand>
             <CustomListItems>
                 <Size>Size() * 2</Size>
@@ -56,7 +101,7 @@
 
     <Type Name="Urho3D::HashSet&lt;*&gt;">
         <DisplayString Condition="Size()==0">EMPTY</DisplayString>
-        <DisplayString>List(size={Size()})</DisplayString>
+        <DisplayString>HashSet(size={Size()})</DisplayString>
         <Expand>
             <CustomListItems>
                 <Size>Size()</Size>
@@ -82,17 +127,26 @@
         <DisplayString Condition="ptr_==nullptr">nullptr</DisplayString>
         <DisplayString>{ptr_}</DisplayString>
     </Type>
-
+    
+    <Type Name="Urho3D::Resource">
+        <DisplayString Condition="!name_.Empty()">{name_}</DisplayString>
+    </Type>
+    
     <Type Name="Urho3D::Node">
         <DisplayString>(id={id_},name={impl_->name_},enable={enabled_})</DisplayString>
     </Type>
 
     <Type Name="Urho3D::Component">
-        <DisplayString>(id={id_},enable={enabled_},node={node_})</DisplayString>
+        <DisplayString>(id={id_},owner={node_},enable={enabled_})</DisplayString>
     </Type>
 
+    <!-- Rendering types-->
+    <Type Name="Urho3D::ShaderVariation"> 
+        <DisplayString>({type_},{name_},{defines_})</DisplayString>
+    </Type>
+    
     <Type Name="Urho3D::RenderPathCommand">
-        <DisplayString>(type={type_},pass={pass_},passIndex={passIndex_})</DisplayString>
+        <DisplayString>(type={type_},pass={pass_})</DisplayString>
     </Type>
 
     <Type Name="Urho3D::Pass">
